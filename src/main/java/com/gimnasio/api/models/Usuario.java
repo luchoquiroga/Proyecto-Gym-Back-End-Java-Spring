@@ -1,17 +1,17 @@
 package com.gimnasio.api.models;
 
-import com.gimnasio.api.models.enums.EstadoCliente;
+import com.gimnasio.api.models.enums.RolUsuario;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "clientes")
+@Table(name = "usuarios")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Cliente {
+public class Usuario {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -20,13 +20,10 @@ public class Cliente {
     @Column(nullable = false, length = 100)
     private String nombre;
 
-    @Column(nullable = false, length = 100)
-    private String apellido;
-
-    @Column(length = 50)
-    private String telefono;
+    @Column(nullable = false)
+    private String contrasena;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private EstadoCliente estado;
+    private RolUsuario rol;
 }
