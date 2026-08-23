@@ -4,6 +4,7 @@ import com.gimnasio.api.models.Usuario;
 import com.gimnasio.api.repositories.UsuarioRepository;
 import com.gimnasio.api.services.UsuarioService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UsuarioServiceImpl implements UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
@@ -28,6 +30,7 @@ public class UsuarioServiceImpl implements UsuarioService {
         if (usuarioRepository.findByNombre(usuario.getNombre()).isPresent()) {
             throw new IllegalArgumentException("Ya existe un usuario registrado con el nombre: " + usuario.getNombre());
         }
+        usuario.setContrasena(passwordEncoder.encode(usuario.getContrasena()));
         return usuarioRepository.save(usuario);
     }
 
@@ -35,7 +38,7 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Transactional(readOnly = true)
     public boolean autenticar(String nombre, String contrasena) {
         return usuarioRepository.findByNombre(nombre)
-                .map(usuario -> usuario.getContrasena().equals(contrasena))
+                .map(usuario -> passwordEncoder.matches(contrasena, usuario.getContrasena()))
                 .orElse(false);
     }
 
@@ -53,7 +56,7 @@ public class UsuarioServiceImpl implements UsuarioService {
             throw new IllegalArgumentException("La nueva contraseña no puede estar vacía.");
         }
         Usuario usuario = buscarPorNombre(nombre);
-        usuario.setContrasena(nuevaContrasena);
+        usuario.setContrasena(passwordEncoder.encode(nuevaContrasena));
         return usuarioRepository.save(usuario);
     }
 

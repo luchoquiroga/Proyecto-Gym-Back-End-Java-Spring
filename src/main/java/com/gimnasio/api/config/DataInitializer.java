@@ -8,6 +8,7 @@ import com.gimnasio.api.repositories.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,12 +22,13 @@ public class DataInitializer implements CommandLineRunner {
 
     private final UsuarioRepository usuarioRepository;
     private final PlanRepository planRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
         // 1. Inicializar usuario administrador si la tabla está vacía
         if (usuarioRepository.count() == 0) {
-            Usuario admin = new Usuario(null, "admin", "admin123", RolUsuario.ADMIN);
+            Usuario admin = new Usuario(null, "admin", passwordEncoder.encode("admin123"), RolUsuario.ADMIN);
             usuarioRepository.save(admin);
             log.info(">> [DataInitializer] Usuario 'admin' creado con éxito (Contraseña: admin123)");
         }

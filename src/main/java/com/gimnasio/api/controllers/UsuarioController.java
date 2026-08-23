@@ -3,6 +3,7 @@ package com.gimnasio.api.controllers;
 import com.gimnasio.api.dto.CambioContrasenaRequest;
 import com.gimnasio.api.dto.LoginRequest;
 import com.gimnasio.api.models.Usuario;
+import com.gimnasio.api.security.JwtService;
 import com.gimnasio.api.services.UsuarioService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
+    private final JwtService jwtService;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
@@ -33,8 +35,11 @@ public class UsuarioController {
         }
 
         Usuario usuario = usuarioService.buscarPorNombre(request.getNombre());
+        String token = jwtService.generarToken(usuario);
+
         Map<String, Object> respuesta = new HashMap<>();
         respuesta.put("mensaje", "Inicio de sesión exitoso");
+        respuesta.put("token", token);
         respuesta.put("id", usuario.getId());
         respuesta.put("nombre", usuario.getNombre());
         respuesta.put("rol", usuario.getRol());
