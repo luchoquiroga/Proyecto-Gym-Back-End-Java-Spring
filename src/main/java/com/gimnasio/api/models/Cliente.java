@@ -27,6 +27,6 @@ public class Cliente {
     private String telefono;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private EstadoCliente estado;
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20) default 'INACTIVO'")
+    private EstadoCliente estado = EstadoCliente.INACTIVO;
 }
