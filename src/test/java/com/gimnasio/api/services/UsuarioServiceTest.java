@@ -8,9 +8,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
@@ -24,14 +25,18 @@ class UsuarioServiceTest {
     @Mock
     private UsuarioRepository usuarioRepository;
 
-    @InjectMocks
+    // Se usa una instancia real (no un mock) porque el hashing es determinístico en su comportamiento
+    // pero no en su salida (cada encode() genera un hash distinto), por lo que mockearlo no aportaría nada.
+    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
     private UsuarioServiceImpl usuarioService;
 
     private Usuario usuarioAdmin;
 
     @BeforeEach
     void setUp() {
-        usuarioAdmin = new Usuario(1, "admin", "admin123", RolUsuario.ADMIN);
+        usuarioService = new UsuarioServiceImpl(usuarioRepository, passwordEncoder);
+        usuarioAdmin = new Usuario(1, "admin", passwordEncoder.encode("admin123"), RolUsuario.ADMIN);
     }
 
     @Test
@@ -66,6 +71,19 @@ class UsuarioServiceTest {
     }
 
     @Test
+    @DisplayName("Registrar debe guardar la contraseña hasheada, nunca en texto plano")
+    void registrar_deberiaHashearLaContrasena() {
+        when(usuarioRepository.findByNombre("nuevo")).thenReturn(Optional.empty());
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Usuario nuevo = new Usuario(null, "nuevo", "claveEnTextoPlano", RolUsuario.GERENCIA);
+        Usuario guardado = usuarioService.registrar(nuevo);
+
+        assertNotEquals("claveEnTextoPlano", guardado.getContrasena());
+        assertTrue(passwordEncoder.matches("claveEnTextoPlano", guardado.getContrasena()));
+    }
+
+    @Test
     @DisplayName("Registrar debe lanzar excepción si el nombre de usuario ya está en uso")
     void registrar_cuandoNombreYaExiste_deberiaLanzarExcepcion() {
         when(usuarioRepository.findByNombre("admin")).thenReturn(Optional.of(usuarioAdmin));
@@ -81,14 +99,15 @@ class UsuarioServiceTest {
     }
 
     @Test
-    @DisplayName("Actualizar contraseña debe modificar la clave exitosamente")
+    @DisplayName("Actualizar contraseña debe guardar la nueva clave hasheada")
     void actualizarContrasena_deberiaCambiarClave() {
         when(usuarioRepository.findByNombre("admin")).thenReturn(Optional.of(usuarioAdmin));
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Usuario actualizado = usuarioService.actualizarContrasena("admin", "nuevaClave2026");
 
-        assertEquals("nuevaClave2026", actualizado.getContrasena());
+        assertNotEquals("nuevaClave2026", actualizado.getContrasena());
+        assertTrue(passwordEncoder.matches("nuevaClave2026", actualizado.getContrasena()));
         verify(usuarioRepository, times(1)).save(usuarioAdmin);
     }
 }
