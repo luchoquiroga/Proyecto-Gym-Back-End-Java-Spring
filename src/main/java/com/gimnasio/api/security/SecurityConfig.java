@@ -37,6 +37,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Público
+                        .requestMatchers("/ping").permitAll()
                         .requestMatchers("/api/v1/usuarios/login").permitAll()
                         // Solo ADMIN: gestión de cuentas de usuario, catálogo de planes (altas/bajas) y dashboard
                         .requestMatchers(HttpMethod.POST, "/api/v1/usuarios").hasRole("ADMIN")
