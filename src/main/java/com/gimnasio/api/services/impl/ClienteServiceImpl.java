@@ -5,6 +5,7 @@ import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.repositories.ClienteRepository;
 import com.gimnasio.api.services.ClienteService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ import java.util.List;
 public class ClienteServiceImpl implements ClienteService {
 
     private final ClienteRepository clienteRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional(readOnly = true)
@@ -46,6 +48,16 @@ public class ClienteServiceImpl implements ClienteService {
         if (cliente.getEstado() == null) {
             cliente.setEstado(EstadoCliente.INACTIVO);
         }
+
+        if (cliente.getEmail() != null && !cliente.getEmail().isBlank()
+                && clienteRepository.findByEmail(cliente.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("Ya existe un cliente registrado con el email: " + cliente.getEmail());
+        }
+
+        if (cliente.getContrasena() != null && !cliente.getContrasena().isBlank()) {
+            cliente.setContrasena(passwordEncoder.encode(cliente.getContrasena()));
+        }
+
         return clienteRepository.save(cliente);
     }
 
@@ -76,5 +88,43 @@ public class ClienteServiceImpl implements ClienteService {
         Cliente cliente = obtenerPorId(id);
         cliente.setEstado(EstadoCliente.INACTIVO);
         clienteRepository.save(cliente);
+    }
+
+    @Override
+    @Transactional
+    public Cliente registrarCredenciales(String nombre, String apellido, String telefono,
+                                          String email, String contrasena) {
+        Cliente cliente = clienteRepository
+                .findByNombreIgnoreCaseAndApellidoIgnoreCaseAndTelefono(nombre, apellido, telefono)
+                .orElseThrow(() -> new RuntimeException(
+                        "Cliente no encontrado con esos datos. Acercate al gimnasio para verificar tu registro."));
+
+        if (cliente.getContrasena() != null) {
+            throw new IllegalArgumentException("Ya existe una cuenta registrada para este cliente. Iniciá sesión.");
+        }
+
+        if (clienteRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("Ya existe un cliente registrado con el email: " + email);
+        }
+
+        cliente.setEmail(email);
+        cliente.setContrasena(passwordEncoder.encode(contrasena));
+        return clienteRepository.save(cliente);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean autenticar(String email, String contrasena) {
+        return clienteRepository.findByEmail(email)
+                .map(cliente -> cliente.getContrasena() != null
+                        && passwordEncoder.matches(contrasena, cliente.getContrasena()))
+                .orElse(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Cliente buscarPorEmail(String email) {
+        return clienteRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Cliente no encontrado con el email: " + email));
     }
 }

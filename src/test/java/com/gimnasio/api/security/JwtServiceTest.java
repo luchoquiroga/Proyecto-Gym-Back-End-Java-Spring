@@ -19,14 +19,14 @@ class JwtServiceTest {
 
     @BeforeEach
     void setUp() {
-        jwtService = new JwtService(SECRETO_BASE64, 86400000L);
+        jwtService = new JwtService(SECRETO_BASE64, 1800000L, 2592000000L);
         usuarioAdmin = new Usuario(1, "admin", "hash-irrelevante", RolUsuario.ADMIN);
     }
 
     @Test
-    @DisplayName("El token generado debe contener el nombre de usuario y el rol correctos")
-    void generarToken_deberiaContenerNombreYRol() {
-        String token = jwtService.generarToken(usuarioAdmin);
+    @DisplayName("El access token generado debe contener el nombre de usuario y el rol correctos")
+    void generarAccessToken_deberiaContenerNombreYRol() {
+        String token = jwtService.generarAccessToken(usuarioAdmin);
 
         assertNotNull(token);
         assertEquals("admin", jwtService.extraerNombreUsuario(token));
@@ -34,10 +34,10 @@ class JwtServiceTest {
     }
 
     @Test
-    @DisplayName("Un token expirado debe lanzar ExpiredJwtException al validarlo")
+    @DisplayName("Un access token expirado debe lanzar ExpiredJwtException al validarlo")
     void tokenExpirado_deberiaLanzarExcepcion() {
-        JwtService servicioConExpiracionInmediata = new JwtService(SECRETO_BASE64, -1000L);
-        String tokenExpirado = servicioConExpiracionInmediata.generarToken(usuarioAdmin);
+        JwtService servicioConExpiracionInmediata = new JwtService(SECRETO_BASE64, -1000L, 2592000000L);
+        String tokenExpirado = servicioConExpiracionInmediata.generarAccessToken(usuarioAdmin);
 
         assertThrows(ExpiredJwtException.class, () -> jwtService.validarYObtenerClaims(tokenExpirado));
     }
@@ -46,9 +46,27 @@ class JwtServiceTest {
     @DisplayName("Un token firmado con otra clave debe ser rechazado")
     void tokenConFirmaInvalida_deberiaSerRechazado() {
         JwtService servicioConOtraClave = new JwtService(
-                "b3RyYS1jbGF2ZS1jb21wbGV0YW1lbnRlLWRpc3RpbnRhLWRlLTI1Ni1iaXRz", 86400000L);
-        String tokenConOtraFirma = servicioConOtraClave.generarToken(usuarioAdmin);
+                "b3RyYS1jbGF2ZS1jb21wbGV0YW1lbnRlLWRpc3RpbnRhLWRlLTI1Ni1iaXRz", 1800000L, 2592000000L);
+        String tokenConOtraFirma = servicioConOtraClave.generarAccessToken(usuarioAdmin);
 
         assertThrows(SignatureException.class, () -> jwtService.validarYObtenerClaims(tokenConOtraFirma));
+    }
+
+    @Test
+    @DisplayName("El refresh token generado debe llevar jti y marcarse como tipo refresh")
+    void generarRefreshToken_deberiaContenerJtiYTipoRefresh() {
+        String jti = jwtService.generarJti();
+        String token = jwtService.generarRefreshToken(usuarioAdmin, jti);
+
+        assertEquals(jti, jwtService.extraerJti(token));
+        assertTrue(jwtService.esRefreshToken(token));
+    }
+
+    @Test
+    @DisplayName("Un access token no debe considerarse refresh token")
+    void accessToken_noDeberiaSerConsideradoRefreshToken() {
+        String token = jwtService.generarAccessToken(usuarioAdmin);
+
+        assertFalse(jwtService.esRefreshToken(token));
     }
 }
