@@ -43,6 +43,8 @@ public class PlanServiceImpl implements PlanService {
     @Transactional
     public Plan crear(Plan plan) {
         validarPlan(plan);
+        // Un alta nunca debe poder pisar una fila existente vía un id enviado en el body.
+        plan.setId(null);
         return planRepository.save(plan);
     }
 

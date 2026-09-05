@@ -10,14 +10,17 @@ import com.gimnasio.api.models.Usuario;
 import com.gimnasio.api.security.JwtService;
 import com.gimnasio.api.security.RefreshTokenService;
 import com.gimnasio.api.services.UsuarioService;
+import com.gimnasio.api.security.AuthPrincipal;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -46,7 +49,7 @@ public class UsuarioController {
     private String cookieSameSite;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpServletResponse response) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
         boolean autenticado = usuarioService.autenticar(request.getNombre(), request.getContrasena());
         if (!autenticado) {
             Map<String, Object> error = new HashMap<>();
@@ -111,7 +114,7 @@ public class UsuarioController {
     }
 
     @PutMapping("/cambiar-contrasena")
-    public ResponseEntity<Usuario> cambiarContrasena(@RequestBody CambioContrasenaRequest request) {
+    public ResponseEntity<Usuario> cambiarContrasena(@Valid @RequestBody CambioContrasenaRequest request) {
         Usuario usuarioActualizado = usuarioService.actualizarContrasena(
                 request.getNombre(),
                 request.getNuevaContrasena()
@@ -120,8 +123,8 @@ public class UsuarioController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
-        usuarioService.eliminar(id);
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id, @AuthenticationPrincipal AuthPrincipal principal) {
+        usuarioService.eliminar(id, principal.id());
         return ResponseEntity.noContent().build();
     }
 

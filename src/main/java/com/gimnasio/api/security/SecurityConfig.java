@@ -30,6 +30,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RateLimitFilter rateLimitFilter;
 
     @Value("${app.cors.allowed-origins}")
     private List<String> allowedOrigins;
@@ -76,6 +77,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/planes").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/planes/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/planes/**").hasRole("ADMIN")
+                        // ADMIN o GERENCIA: listados completos de clientes/pagos (un Cliente solo
+                        // puede ver su propio registro, chequeo que hacen los controllers)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/clientes", "/api/v1/clientes/buscar")
+                                .hasAnyRole("ADMIN", "GERENCIA")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/pagos", "/api/v1/pagos/buscar")
+                                .hasAnyRole("ADMIN", "GERENCIA")
                         // ADMIN o GERENCIA: operación diaria (clientes, pagos, consulta de planes)
                         .anyRequest().authenticated()
                 )
@@ -95,7 +102,8 @@ public class SecurityConfig {
                             );
                         })
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

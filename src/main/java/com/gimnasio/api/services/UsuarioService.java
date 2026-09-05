@@ -40,7 +40,10 @@ public interface UsuarioService {
 
     /**
      * Elimina una cuenta de usuario del sistema por su ID.
-     * @param id Identificador del usuario.
+     * @param id Identificador del usuario a eliminar.
+     * @param callerId Identificador de quien pide la eliminación (para evitar auto-eliminarse).
+     * @throws IllegalArgumentException si el id coincide con callerId, o si el usuario a eliminar
+     *         es el último ADMIN del sistema.
      */
-    void eliminar(Integer id);
+    void eliminar(Integer id, Integer callerId);
 }

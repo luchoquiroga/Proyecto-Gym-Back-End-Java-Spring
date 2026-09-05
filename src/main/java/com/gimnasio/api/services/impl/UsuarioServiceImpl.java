@@ -1,6 +1,7 @@
 package com.gimnasio.api.services.impl;
 
 import com.gimnasio.api.models.Usuario;
+import com.gimnasio.api.models.enums.RolUsuario;
 import com.gimnasio.api.repositories.UsuarioRepository;
 import com.gimnasio.api.services.UsuarioService;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,8 @@ public class UsuarioServiceImpl implements UsuarioService {
         if (usuarioRepository.findByNombre(usuario.getNombre()).isPresent()) {
             throw new IllegalArgumentException("Ya existe un usuario registrado con el nombre: " + usuario.getNombre());
         }
+        // Un alta nunca debe poder pisar una fila existente vía un id enviado en el body.
+        usuario.setId(null);
         usuario.setContrasena(passwordEncoder.encode(usuario.getContrasena()));
         return usuarioRepository.save(usuario);
     }
@@ -62,10 +65,18 @@ public class UsuarioServiceImpl implements UsuarioService {
 
     @Override
     @Transactional
-    public void eliminar(Integer id) {
-        if (!usuarioRepository.existsById(id)) {
-            throw new RuntimeException("No se puede eliminar: Usuario no encontrado con ID " + id);
+    public void eliminar(Integer id, Integer callerId) {
+        if (id.equals(callerId)) {
+            throw new IllegalArgumentException("No podés eliminar tu propio usuario.");
         }
+
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("No se puede eliminar: Usuario no encontrado con ID " + id));
+
+        if (usuario.getRol() == RolUsuario.ADMIN && usuarioRepository.countByRol(RolUsuario.ADMIN) <= 1) {
+            throw new IllegalArgumentException("No se puede eliminar el último administrador del sistema.");
+        }
+
         usuarioRepository.deleteById(id);
     }
 }

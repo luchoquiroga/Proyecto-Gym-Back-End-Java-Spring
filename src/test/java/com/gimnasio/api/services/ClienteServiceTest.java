@@ -66,6 +66,28 @@ class ClienteServiceTest {
     }
 
     @Test
+    @DisplayName("Crear debe ignorar cualquier id enviado en el body (no debe poder pisar otra fila)")
+    void crear_conIdEnviado_deberiaIgnorarlo() {
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Cliente conIdAjeno = new Cliente(99, "Carlos", "Gómez", "123456789", null, null, null);
+        Cliente resultado = clienteService.crear(conIdAjeno);
+
+        assertNull(resultado.getId());
+    }
+
+    @Test
+    @DisplayName("Crear debe forzar estado INACTIVO aunque el body envíe otro estado explícito")
+    void crear_conEstadoExplicito_deberiaForzarInactivo() {
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Cliente conEstadoActivo = new Cliente(null, "Carlos", "Gómez", "123456789", null, null, EstadoCliente.ACTIVO);
+        Cliente resultado = clienteService.crear(conEstadoActivo);
+
+        assertEquals(EstadoCliente.INACTIVO, resultado.getEstado());
+    }
+
+    @Test
     @DisplayName("Debe hashear la contraseña cuando el cliente se registra con email y contraseña")
     void crear_conCredenciales_deberiaHashearLaContrasena() {
         when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.empty());

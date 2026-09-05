@@ -44,10 +44,12 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     @Transactional
     public Cliente crear(Cliente cliente) {
-        // Por regla de negocio, un cliente recién registrado inicia INACTIVO hasta que abone un pago
-        if (cliente.getEstado() == null) {
-            cliente.setEstado(EstadoCliente.INACTIVO);
-        }
+        // Por regla de negocio, un cliente recién registrado siempre inicia INACTIVO hasta que
+        // abone un pago; no se respeta un "estado" que venga en el body del alta.
+        cliente.setEstado(EstadoCliente.INACTIVO);
+
+        // Un alta nunca debe poder pisar una fila existente vía un id enviado en el body.
+        cliente.setId(null);
 
         if (cliente.getEmail() != null && !cliente.getEmail().isBlank()
                 && clienteRepository.findByEmail(cliente.getEmail()).isPresent()) {

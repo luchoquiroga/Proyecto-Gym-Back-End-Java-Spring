@@ -75,6 +75,17 @@ class UsuarioControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("Login con nombre en blanco debe devolver 400 por validación, no llegar al service")
+    void login_conNombreEnBlanco_deberiaDevolver400() throws Exception {
+        mockMvc.perform(post("/api/v1/usuarios/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("", "admin123"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.errores.nombre").isNotEmpty());
+    }
+
+    @Test
     @DisplayName("Refresh con cookie válida rota los tokens, y la cookie vieja deja de servir")
     void refresh_conCookieValida_deberiaRotarYLuegoInvalidarLaVieja() throws Exception {
         MvcResult loginResult = login("admin", "admin123");

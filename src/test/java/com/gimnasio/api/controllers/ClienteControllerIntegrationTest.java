@@ -62,6 +62,20 @@ class ClienteControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("Registro con email mal formado debe devolver 400 por validación, no llegar al service")
+    void registro_conEmailMalFormado_deberiaDevolver400() throws Exception {
+        ClienteRegistroRequest request = new ClienteRegistroRequest(
+                "Cualquiera", "Persona", "555-X", "esto-no-es-un-email", "clave123");
+
+        mockMvc.perform(post("/api/v1/clientes/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.errores.email").isNotEmpty());
+    }
+
+    @Test
     @DisplayName("Registro exitoso completa email y hashea la contraseña, con distinto casing en nombre/apellido")
     void registro_conDatosCoincidentes_deberiaCompletarPerfil() throws Exception {
         Cliente cliente = clienteRepository.save(
@@ -206,8 +220,8 @@ class ClienteControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Un token de Cliente puede listar clientes (endpoint autenticado genérico, sin restricción de rol)")
-    void listarClientes_conTokenDeCliente_deberiaDevolver200() throws Exception {
+    @DisplayName("Un token de Cliente no puede listar todos los clientes (listado completo es solo staff)")
+    void listarClientes_conTokenDeCliente_deberiaDevolver403() throws Exception {
         registrarCliente("Emilia", "Torres", "555-C10", "emilia@test.com", "claveEmilia123");
         MvcResult loginResult = mockMvc.perform(post("/api/v1/clientes/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -218,7 +232,44 @@ class ClienteControllerIntegrationTest {
         String token = extraerCampo(loginResult, "accessToken");
 
         mockMvc.perform(get("/api/v1/clientes").header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Un token de Cliente puede ver su propio registro por id")
+    void obtenerPorId_conTokenDeClientePropio_deberiaDevolver200() throws Exception {
+        registrarCliente("Nico", "Vega", "555-C11", "nico@test.com", "claveNico123");
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/clientes/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ClienteLoginRequest("nico@test.com", "claveNico123"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String token = extraerCampo(loginResult, "accessToken");
+        String propioId = objectMapper.readTree(loginResult.getResponse().getContentAsString())
+                .get("cliente").get("id").asText();
+
+        mockMvc.perform(get("/api/v1/clientes/" + propioId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(Integer.parseInt(propioId)));
+    }
+
+    @Test
+    @DisplayName("Un token de Cliente no puede ver el registro de otro cliente por id")
+    void obtenerPorId_conTokenDeOtroCliente_deberiaDevolver403() throws Exception {
+        Cliente otroCliente = clienteRepository.save(
+                new Cliente(null, "Ajeno", "Perez", "555-C12", null, null, EstadoCliente.INACTIVO));
+        registrarCliente("Nico", "Vega", "555-C13", "nico2@test.com", "claveNico123");
+        MvcResult loginResult = mockMvc.perform(post("/api/v1/clientes/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ClienteLoginRequest("nico2@test.com", "claveNico123"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String token = extraerCampo(loginResult, "accessToken");
+
+        mockMvc.perform(get("/api/v1/clientes/" + otroCliente.getId()).header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
     }
 
     private void registrarCliente(String nombre, String apellido, String telefono,

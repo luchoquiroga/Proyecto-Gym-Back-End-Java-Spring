@@ -8,17 +8,21 @@ import com.gimnasio.api.dto.ClienteResponse;
 import com.gimnasio.api.dto.MensajeResponse;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.enums.EstadoCliente;
+import com.gimnasio.api.security.AuthPrincipal;
 import com.gimnasio.api.security.ClienteRefreshTokenService;
 import com.gimnasio.api.security.JwtService;
 import com.gimnasio.api.services.ClienteService;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -52,7 +56,12 @@ public class ClienteController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Cliente> obtenerPorId(@PathVariable Integer id) {
+    public ResponseEntity<Cliente> obtenerPorId(@PathVariable Integer id,
+                                                 @AuthenticationPrincipal AuthPrincipal principal) {
+        boolean esStaff = "ADMIN".equals(principal.rol()) || "GERENCIA".equals(principal.rol());
+        if (!esStaff && !id.equals(principal.id())) {
+            throw new AccessDeniedException("No podés acceder a datos de otro cliente");
+        }
         return ResponseEntity.ok(clienteService.obtenerPorId(id));
     }
 
@@ -86,7 +95,7 @@ public class ClienteController {
     }
 
     @PostMapping("/registro")
-    public ResponseEntity<?> registro(@RequestBody ClienteRegistroRequest request) {
+    public ResponseEntity<?> registro(@Valid @RequestBody ClienteRegistroRequest request) {
         clienteService.registrarCredenciales(
                 request.getNombre(), request.getApellido(), request.getTelefono(),
                 request.getEmail(), request.getContrasena());
@@ -94,7 +103,7 @@ public class ClienteController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody ClienteLoginRequest request, HttpServletResponse response) {
+    public ResponseEntity<?> login(@Valid @RequestBody ClienteLoginRequest request, HttpServletResponse response) {
         boolean autenticado = clienteService.autenticar(request.getEmail(), request.getContrasena());
         if (!autenticado) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new MensajeResponse("Credenciales incorrectas"));
