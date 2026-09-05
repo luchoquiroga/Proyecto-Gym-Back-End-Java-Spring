@@ -45,9 +45,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Claims claims = jwtService.validarYObtenerClaims(token);
             String nombreUsuario = claims.getSubject();
             String rol = claims.get("rol", String.class);
+            Integer id = claims.get("id", Integer.class);
 
+            // El principal es un AuthPrincipal (no un String) para que los controllers puedan
+            // saber "a quién pertenece este token" sin volver a consultar la base. Nota: como
+            // no es String/Principal, Authentication#getName() haría toString() sobre él si
+            // alguna vez se usara (hoy no se usa en ningún lado del código).
+            var principal = new AuthPrincipal(id, nombreUsuario, rol);
             var authoridades = List.of(new SimpleGrantedAuthority("ROLE_" + rol));
-            var autenticacion = new UsernamePasswordAuthenticationToken(nombreUsuario, null, authoridades);
+            var autenticacion = new UsernamePasswordAuthenticationToken(principal, null, authoridades);
             SecurityContextHolder.getContext().setAuthentication(autenticacion);
 
             filterChain.doFilter(request, response);

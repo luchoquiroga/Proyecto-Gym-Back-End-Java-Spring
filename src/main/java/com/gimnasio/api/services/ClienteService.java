@@ -61,4 +61,23 @@ public interface ClienteService {
      * @param id Identificador del cliente a dar de baja.
      */
     void darDeBaja(Integer id);
+
+    /**
+     * Completa el registro web de un cliente ya dado de alta por el staff (sin credenciales),
+     * sumándole email y contraseña a su perfil existente. No crea un cliente nuevo.
+     * @throws RuntimeException si no existe un cliente con esos datos de contacto.
+     * @throws IllegalArgumentException si el cliente ya tiene una cuenta o el email está en uso.
+     */
+    Cliente registrarCredenciales(String nombre, String apellido, String telefono, String email, String contrasena);
+
+    /**
+     * Autentica las credenciales de un cliente al iniciar sesión en el portal web.
+     */
+    boolean autenticar(String email, String contrasena);
+
+    /**
+     * Busca un cliente por su email de login.
+     * @throws RuntimeException si no existe.
+     */
+    Cliente buscarPorEmail(String email);
 }

@@ -110,4 +110,50 @@ class UsuarioServiceTest {
         assertTrue(passwordEncoder.matches("nuevaClave2026", actualizado.getContrasena()));
         verify(usuarioRepository, times(1)).save(usuarioAdmin);
     }
+
+    @Test
+    @DisplayName("Registrar debe ignorar cualquier id enviado en el body (no debe poder pisar otra fila)")
+    void registrar_conIdEnviado_deberiaIgnorarlo() {
+        when(usuarioRepository.findByNombre("nuevo")).thenReturn(Optional.empty());
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Usuario conIdAjeno = new Usuario(99, "nuevo", "clave123", RolUsuario.GERENCIA);
+        Usuario guardado = usuarioService.registrar(conIdAjeno);
+
+        assertNull(guardado.getId());
+    }
+
+    @Test
+    @DisplayName("Eliminar debe rechazar que un usuario se elimine a sí mismo")
+    void eliminar_conAutoEliminacion_deberiaLanzarExcepcion() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                usuarioService.eliminar(1, 1));
+
+        assertTrue(ex.getMessage().contains("propio usuario"));
+        verify(usuarioRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("Eliminar debe rechazar borrar al último ADMIN del sistema")
+    void eliminar_conUltimoAdmin_deberiaLanzarExcepcion() {
+        when(usuarioRepository.findById(1)).thenReturn(Optional.of(usuarioAdmin));
+        when(usuarioRepository.countByRol(RolUsuario.ADMIN)).thenReturn(1L);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                usuarioService.eliminar(1, 2));
+
+        assertTrue(ex.getMessage().contains("último administrador"));
+        verify(usuarioRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("Eliminar un ADMIN que no es el último ni quien lo pide debe funcionar normalmente")
+    void eliminar_casoNormal_deberiaEliminar() {
+        when(usuarioRepository.findById(1)).thenReturn(Optional.of(usuarioAdmin));
+        when(usuarioRepository.countByRol(RolUsuario.ADMIN)).thenReturn(2L);
+
+        usuarioService.eliminar(1, 2);
+
+        verify(usuarioRepository, times(1)).deleteById(1);
+    }
 }

@@ -30,7 +30,7 @@ public class DataInitializer implements CommandLineRunner {
         if (usuarioRepository.count() == 0) {
             Usuario admin = new Usuario(null, "admin", passwordEncoder.encode("admin123"), RolUsuario.ADMIN);
             usuarioRepository.save(admin);
-            log.info(">> [DataInitializer] Usuario 'admin' creado con éxito (Contraseña: admin123)");
+            log.info(">> [DataInitializer] Usuario 'admin' creado con éxito");
         }
 
         // 2. Inicializar catálogo de planes base si la tabla está vacía

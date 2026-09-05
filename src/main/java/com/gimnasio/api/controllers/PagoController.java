@@ -2,10 +2,14 @@ package com.gimnasio.api.controllers;
 
 import com.gimnasio.api.dto.PagoRequest;
 import com.gimnasio.api.models.Pago;
+import com.gimnasio.api.security.AuthPrincipal;
 import com.gimnasio.api.services.PagoService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,7 +35,12 @@ public class PagoController {
     }
 
     @GetMapping("/cliente/{clienteId}")
-    public ResponseEntity<List<Pago>> obtenerPagosPorCliente(@PathVariable Integer clienteId) {
+    public ResponseEntity<List<Pago>> obtenerPagosPorCliente(@PathVariable Integer clienteId,
+                                                              @AuthenticationPrincipal AuthPrincipal principal) {
+        boolean esStaff = "ADMIN".equals(principal.rol()) || "GERENCIA".equals(principal.rol());
+        if (!esStaff && !clienteId.equals(principal.id())) {
+            throw new AccessDeniedException("No podés acceder a los pagos de otro cliente");
+        }
         return ResponseEntity.ok(pagoService.obtenerPagosPorCliente(clienteId));
     }
 
@@ -41,7 +50,7 @@ public class PagoController {
     }
 
     @PostMapping
-    public ResponseEntity<Pago> registrarPago(@RequestBody PagoRequest request) {
+    public ResponseEntity<Pago> registrarPago(@Valid @RequestBody PagoRequest request) {
         Pago nuevoPago = pagoService.registrarPago(
                 request.getClienteId(),
                 request.getPlanId(),

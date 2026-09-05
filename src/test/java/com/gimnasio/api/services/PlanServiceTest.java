@@ -48,6 +48,17 @@ class PlanServiceTest {
     }
 
     @Test
+    @DisplayName("Crear debe ignorar cualquier id enviado en el body (no debe poder pisar otra fila)")
+    void crear_conIdEnviado_deberiaIgnorarlo() {
+        when(planRepository.save(any(Plan.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Plan conIdAjeno = new Plan(99, "Pase Quincenal", 18000.0, 15);
+        Plan resultado = planService.crear(conIdAjeno);
+
+        assertNull(resultado.getId());
+    }
+
+    @Test
     @DisplayName("Crear plan con precio negativo debe lanzar IllegalArgumentException")
     void crear_conPrecioNegativo_deberiaLanzarExcepcion() {
         Plan invalido = new Plan(null, "Pase Inválido", -500.0, 30);

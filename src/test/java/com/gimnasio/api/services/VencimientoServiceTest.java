@@ -44,7 +44,7 @@ class VencimientoServiceTest {
     @Test
     @DisplayName("Cliente ACTIVO con pago vencido hace 1 día debe pasar a MOROSO")
     void unDiaVencido_deberiaPasarAMoroso() {
-        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", EstadoCliente.ACTIVO);
+        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", null, null, EstadoCliente.ACTIVO);
         Pago ultimoPago = pagoConVencimientoHace(1, cliente);
         when(pagoRepository.findUltimoPagoPorCadaCliente()).thenReturn(List.of(ultimoPago));
 
@@ -57,7 +57,7 @@ class VencimientoServiceTest {
     @Test
     @DisplayName("Cliente con pago vencido hace 5 días o más debe pasar a INACTIVO")
     void cincoDiasVencido_deberiaPasarAInactivo() {
-        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", EstadoCliente.MOROSO);
+        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", null, null, EstadoCliente.MOROSO);
         Pago ultimoPago = pagoConVencimientoHace(5, cliente);
         when(pagoRepository.findUltimoPagoPorCadaCliente()).thenReturn(List.of(ultimoPago));
 
@@ -70,7 +70,7 @@ class VencimientoServiceTest {
     @Test
     @DisplayName("Cliente con pago todavía vigente no debe cambiar de estado")
     void pagoVigente_noDeberiaCambiarEstado() {
-        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", EstadoCliente.ACTIVO);
+        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", null, null, EstadoCliente.ACTIVO);
         Pago ultimoPago = pagoConVencimientoHace(-2, cliente); // vence en 2 días
         when(pagoRepository.findUltimoPagoPorCadaCliente()).thenReturn(List.of(ultimoPago));
 
@@ -83,7 +83,7 @@ class VencimientoServiceTest {
     @Test
     @DisplayName("Cliente ya INACTIVO no debe revertirse a MOROSO aunque los días vencidos bajen de 5")
     void clienteYaInactivo_noDeberiaRevertirse() {
-        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", EstadoCliente.INACTIVO);
+        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", null, null, EstadoCliente.INACTIVO);
         Pago ultimoPago = pagoConVencimientoHace(1, cliente);
         when(pagoRepository.findUltimoPagoPorCadaCliente()).thenReturn(List.of(ultimoPago));
 
