@@ -62,6 +62,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Público
                         .requestMatchers("/ping").permitAll()
+                        // Documentación OpenAPI/Swagger: solo describe el contrato de la API,
+                        // no expone datos ni permite ninguna acción por sí misma.
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/v1/usuarios/login").permitAll()
                         .requestMatchers("/api/v1/usuarios/refresh").permitAll()
                         .requestMatchers("/api/v1/usuarios/logout").permitAll()
