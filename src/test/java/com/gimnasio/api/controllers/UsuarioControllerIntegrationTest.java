@@ -202,12 +202,13 @@ class UsuarioControllerIntegrationTest {
 
     private String registrarYLoguearCliente(String nombre, String apellido, String telefono,
                                              String email, String contrasena) throws Exception {
-        clienteRepository.save(new Cliente(null, nombre, apellido, telefono, null, null, EstadoCliente.INACTIVO));
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, nombre, apellido, telefono, null, null, EstadoCliente.INACTIVO, "CODIGOTEST"));
 
         mockMvc.perform(post("/api/v1/clientes/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new ClienteRegistroRequest(nombre, apellido, telefono, email, contrasena))))
+                                new ClienteRegistroRequest(cliente.getCodigoActivacion(), email, contrasena))))
                 .andExpect(status().isOk());
 
         MvcResult loginResult = mockMvc.perform(post("/api/v1/clientes/login")

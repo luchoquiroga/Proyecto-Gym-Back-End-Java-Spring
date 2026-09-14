@@ -64,11 +64,13 @@ public interface ClienteService {
 
     /**
      * Completa el registro web de un cliente ya dado de alta por el staff (sin credenciales),
-     * sumándole email y contraseña a su perfil existente. No crea un cliente nuevo.
-     * @throws RuntimeException si no existe un cliente con esos datos de contacto.
-     * @throws IllegalArgumentException si el cliente ya tiene una cuenta o el email está en uso.
+     * sumándole email y contraseña a su perfil existente, identificado por el código de
+     * activación de un solo uso que el staff le entregó en persona. No crea un cliente nuevo.
+     * El código se anula al usarse, así que nunca sirve dos veces.
+     * @throws IllegalArgumentException si el código es inválido/ya usado, el cliente ya
+     *         tiene una cuenta, o el email está en uso.
      */
-    Cliente registrarCredenciales(String nombre, String apellido, String telefono, String email, String contrasena);
+    Cliente registrarCredenciales(String codigoActivacion, String email, String contrasena);
 
     /**
      * Autentica las credenciales de un cliente al iniciar sesión en el portal web.

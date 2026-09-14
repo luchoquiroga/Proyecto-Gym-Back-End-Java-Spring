@@ -27,7 +27,7 @@ Roles/principales que existen hoy:
 
 | Método | Ruta | Quién puede | Notas |
 |---|---|---|---|
-| POST | `/registro` | Público | completa credenciales de un cliente ya cargado por staff; matchea por nombre+apellido+teléfono (ver Gaps conocidos) |
+| POST | `/registro` | Público | completa credenciales de un cliente ya cargado por staff; se identifica con el código de activación de un solo uso que el staff le entregó en persona (no con nombre/apellido/teléfono, ver Historial 2026-09-14) |
 | POST | `/login` | Público | |
 | POST | `/refresh` | Público (cookie `clienteRefreshToken`) | |
 | POST | `/logout` | Público | |
@@ -68,15 +68,10 @@ Público.
 
 ---
 
-## Gaps conocidos (no corregidos aún — no son parte del alcance de este documento, quedan anotados para no perderlos)
+## Gaps conocidos
 
-1. **`ClienteController.registro` verifica identidad solo con nombre+apellido+teléfono.**
-   No hay un paso de verificación de posesión (SMS/email de confirmación)
-   antes de dejar que alguien reclame una cuenta de cliente existente. Si esos
-   tres datos son adivinables/conocidos por un tercero, ese tercero puede
-   apropiarse de la cuenta del cliente real. Pendiente: agregar una
-   verificación fuera de banda antes de habilitar la carga de contraseña, o
-   al menos limitar/loguear intentos fallidos repetidos por IP.
+Ninguno pendiente por el momento. El último (identidad de `/registro` basada
+en datos adivinables) se cerró el 2026-09-14, ver Historial.
 
 ## Historial de incidentes (para que no se repitan)
 
@@ -96,3 +91,13 @@ Público.
   POST restringido a ADMIN/GERENCIA en `SecurityConfig`, y `obtenerPorId`
   ahora chequea `pago.getCliente().getId() == principal.id()` igual que ya
   hacía `obtenerPagosPorCliente`.
+- **2026-09-14**: `ClienteController.registro` verificaba identidad solo con
+  nombre+apellido+teléfono, sin ninguna prueba de posesión — cualquiera que
+  conociera/adivinara esos tres datos de un cliente real podía reclamar su
+  cuenta y fijarle su propio email+contraseña. Corregido: se agregó
+  `Cliente.codigoActivacion` (V2 migration), un código de un solo uso
+  generado al dar de alta a un cliente sin credenciales (`ClienteServiceImpl.crear`)
+  que el staff entrega en persona; `/registro` ahora identifica al cliente por
+  ese código en vez de por datos personales, y el código se anula al usarse
+  (`registrarCredenciales`). El código nunca viaja en respuestas salvo una vez,
+  en el alta (`ClienteAltaResponse`) — la entidad `Cliente` lo marca `@JsonIgnore`.

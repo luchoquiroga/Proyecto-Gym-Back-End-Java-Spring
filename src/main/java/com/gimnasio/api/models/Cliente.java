@@ -1,5 +1,6 @@
 package com.gimnasio.api.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -42,4 +43,16 @@ public class Cliente {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20, columnDefinition = "varchar(20) default 'INACTIVO'")
     private EstadoCliente estado = EstadoCliente.INACTIVO;
+
+    /**
+     * Código de activación de un solo uso: se genera al dar de alta al cliente sin
+     * credenciales y el staff se lo entrega en persona (o por teléfono). Es la prueba
+     * de que quien completa /registro es realmente ese cliente, en vez de depender de
+     * datos adivinables como nombre/apellido/teléfono. Se anula (vuelve a null) apenas
+     * se usa, así que nunca sirve dos veces. @JsonIgnore porque nunca debe viajar en
+     * una respuesta salvo la única vez que se genera (ver ClienteAltaResponse).
+     */
+    @JsonIgnore
+    @Column(name = "codigo_activacion", unique = true, length = 10)
+    private String codigoActivacion;
 }
