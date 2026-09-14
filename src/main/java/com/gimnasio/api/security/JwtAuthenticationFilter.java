@@ -43,6 +43,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = header.substring("Bearer ".length());
         try {
             Claims claims = jwtService.validarYObtenerClaims(token);
+            if (jwtService.esRefreshToken(token)) {
+                responderNoAutorizado(response, "Token inválido o expirado");
+                return;
+            }
+
             String nombreUsuario = claims.getSubject();
             String rol = claims.get("rol", String.class);
             Integer id = claims.get("id", Integer.class);
