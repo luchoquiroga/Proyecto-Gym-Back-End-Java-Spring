@@ -30,8 +30,14 @@ public class PagoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Pago> obtenerPorId(@PathVariable Integer id) {
-        return ResponseEntity.ok(pagoService.obtenerPorId(id));
+    public ResponseEntity<Pago> obtenerPorId(@PathVariable Integer id,
+                                              @AuthenticationPrincipal AuthPrincipal principal) {
+        Pago pago = pagoService.obtenerPorId(id);
+        boolean esStaff = "ADMIN".equals(principal.rol()) || "GERENCIA".equals(principal.rol());
+        if (!esStaff && !pago.getCliente().getId().equals(principal.id())) {
+            throw new AccessDeniedException("No podés acceder a los pagos de otro cliente");
+        }
+        return ResponseEntity.ok(pago);
     }
 
     @GetMapping("/cliente/{clienteId}")

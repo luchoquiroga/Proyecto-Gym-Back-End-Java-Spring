@@ -47,25 +47,25 @@ class ClienteControllerIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     @Test
-    @DisplayName("Registro con datos que no matchean ningún cliente debe devolver 404")
-    void registro_sinClienteCoincidente_deberiaDevolver404() throws Exception {
+    @DisplayName("Registro con un código de activación inexistente debe devolver 400")
+    void registro_conCodigoInexistente_deberiaDevolver400() throws Exception {
         ClienteRegistroRequest request = new ClienteRegistroRequest(
-                "Nadie", "Desconocido", "000-NOPE", "nadie@test.com", "clave123");
+                "NOEXISTE1", "nadie@test.com", "clave123");
 
         mockMvc.perform(post("/api/v1/clientes/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.mensaje").value(
-                        "Cliente no encontrado con esos datos. Acercate al gimnasio para verificar tu registro."));
+                        "Código de activación inválido o ya utilizado. Pedí uno nuevo en el gimnasio."));
     }
 
     @Test
     @DisplayName("Registro con email mal formado debe devolver 400 por validación, no llegar al service")
     void registro_conEmailMalFormado_deberiaDevolver400() throws Exception {
         ClienteRegistroRequest request = new ClienteRegistroRequest(
-                "Cualquiera", "Persona", "555-X", "esto-no-es-un-email", "clave123");
+                "CUALQUIERA", "esto-no-es-un-email", "clave123");
 
         mockMvc.perform(post("/api/v1/clientes/registro")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -76,13 +76,13 @@ class ClienteControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Registro exitoso completa email y hashea la contraseña, con distinto casing en nombre/apellido")
-    void registro_conDatosCoincidentes_deberiaCompletarPerfil() throws Exception {
+    @DisplayName("Registro exitoso completa email, hashea la contraseña y anula el código usado")
+    void registro_conCodigoValido_deberiaCompletarPerfil() throws Exception {
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, "Laura", "Fernandez", "555-C2", null, null, EstadoCliente.INACTIVO));
+                new Cliente(null, "Laura", "Fernandez", "555-C2", null, null, EstadoCliente.INACTIVO, "CODIGO-C2"));
 
         ClienteRegistroRequest request = new ClienteRegistroRequest(
-                "LAURA", "fernandez", "555-C2", "laura@test.com", "claveLaura123");
+                "CODIGO-C2", "laura@test.com", "claveLaura123");
 
         mockMvc.perform(post("/api/v1/clientes/registro")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -94,35 +94,36 @@ class ClienteControllerIntegrationTest {
         assertEquals("laura@test.com", actualizado.getEmail());
         assertNotEquals("claveLaura123", actualizado.getContrasena());
         assertTrue(passwordEncoder.matches("claveLaura123", actualizado.getContrasena()));
+        assertNull(actualizado.getCodigoActivacion());
     }
 
     @Test
-    @DisplayName("Registro sobre un cliente ya reclamado debe devolver 400")
-    void registro_clienteYaReclamado_deberiaDevolver400() throws Exception {
+    @DisplayName("Reusar un código de activación ya canjeado debe devolver 400 (es de un solo uso)")
+    void registro_conCodigoYaCanjeado_deberiaDevolver400() throws Exception {
         clienteRepository.save(new Cliente(null, "Marta", "Diaz", "555-C3",
-                "marta@test.com", passwordEncoder.encode("claveVieja"), EstadoCliente.INACTIVO));
+                "marta@test.com", passwordEncoder.encode("claveVieja"), EstadoCliente.INACTIVO, null));
 
         ClienteRegistroRequest request = new ClienteRegistroRequest(
-                "Marta", "Diaz", "555-C3", "otro@test.com", "claveNueva");
+                "CUALQUIERA", "otro@test.com", "claveNueva");
 
         mockMvc.perform(post("/api/v1/clientes/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.mensaje").value(
-                        "Ya existe una cuenta registrada para este cliente. Iniciá sesión."));
+                        "Código de activación inválido o ya utilizado. Pedí uno nuevo en el gimnasio."));
     }
 
     @Test
     @DisplayName("Registro con email ya usado por otro cliente debe devolver 400")
     void registro_conEmailDuplicado_deberiaDevolver400() throws Exception {
         clienteRepository.save(new Cliente(null, "Existente", "Usuario", "555-C4",
-                "ocupado@test.com", passwordEncoder.encode("clave"), EstadoCliente.ACTIVO));
+                "ocupado@test.com", passwordEncoder.encode("clave"), EstadoCliente.ACTIVO, null));
         clienteRepository.save(
-                new Cliente(null, "Nuevo", "Cliente", "555-C5", null, null, EstadoCliente.INACTIVO));
+                new Cliente(null, "Nuevo", "Cliente", "555-C5", null, null, EstadoCliente.INACTIVO, "CODIGO-C5"));
 
         ClienteRegistroRequest request = new ClienteRegistroRequest(
-                "Nuevo", "Cliente", "555-C5", "ocupado@test.com", "claveNueva");
+                "CODIGO-C5", "ocupado@test.com", "claveNueva");
 
         mockMvc.perform(post("/api/v1/clientes/registro")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -251,14 +252,15 @@ class ClienteControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/clientes/" + propioId).header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(Integer.parseInt(propioId)));
+                .andExpect(jsonPath("$.id").value(Integer.parseInt(propioId)))
+                .andExpect(jsonPath("$.contrasena").doesNotExist());
     }
 
     @Test
     @DisplayName("Un token de Cliente no puede ver el registro de otro cliente por id")
     void obtenerPorId_conTokenDeOtroCliente_deberiaDevolver403() throws Exception {
         Cliente otroCliente = clienteRepository.save(
-                new Cliente(null, "Ajeno", "Perez", "555-C12", null, null, EstadoCliente.INACTIVO));
+                new Cliente(null, "Ajeno", "Perez", "555-C12", null, null, EstadoCliente.INACTIVO, null));
         registrarCliente("Nico", "Vega", "555-C13", "nico2@test.com", "claveNico123");
         MvcResult loginResult = mockMvc.perform(post("/api/v1/clientes/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -274,12 +276,15 @@ class ClienteControllerIntegrationTest {
 
     private void registrarCliente(String nombre, String apellido, String telefono,
                                    String email, String contrasena) throws Exception {
-        clienteRepository.save(new Cliente(null, nombre, apellido, telefono, null, null, EstadoCliente.INACTIVO));
+        // El teléfono ya es único por test y cabe en el VARCHAR(10) de codigo_activacion,
+        // así que sirve como código de activación de prueba sin riesgo de colisión.
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, nombre, apellido, telefono, null, null, EstadoCliente.INACTIVO, telefono));
 
         mockMvc.perform(post("/api/v1/clientes/registro")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new ClienteRegistroRequest(nombre, apellido, telefono, email, contrasena))))
+                                new ClienteRegistroRequest(cliente.getCodigoActivacion(), email, contrasena))))
                 .andExpect(status().isOk());
     }
 

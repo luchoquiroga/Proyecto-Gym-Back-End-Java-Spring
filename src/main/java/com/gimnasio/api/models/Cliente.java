@@ -1,5 +1,7 @@
 package com.gimnasio.api.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -35,11 +37,28 @@ public class Cliente {
 
     /**
      * Contraseña hasheada (nunca en texto plano) del cliente para el portal web.
+     * WRITE_ONLY: se puede recibir en un alta directa por staff (POST /clientes),
+     * pero nunca debe viajar de vuelta en ninguna respuesta — antes de esto, GET
+     * /clientes, /clientes/{id} y /clientes/buscar devolvían la entidad completa
+     * y filtraban el hash BCrypt a cualquier ADMIN/GERENCIA (o al propio cliente).
      */
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(length = 255)
     private String contrasena;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20, columnDefinition = "varchar(20) default 'INACTIVO'")
     private EstadoCliente estado = EstadoCliente.INACTIVO;
+
+    /**
+     * Código de activación de un solo uso: se genera al dar de alta al cliente sin
+     * credenciales y el staff se lo entrega en persona (o por teléfono). Es la prueba
+     * de que quien completa /registro es realmente ese cliente, en vez de depender de
+     * datos adivinables como nombre/apellido/teléfono. Se anula (vuelve a null) apenas
+     * se usa, así que nunca sirve dos veces. @JsonIgnore porque nunca debe viajar en
+     * una respuesta salvo la única vez que se genera (ver ClienteAltaResponse).
+     */
+    @JsonIgnore
+    @Column(name = "codigo_activacion", unique = true, length = 10)
+    private String codigoActivacion;
 }

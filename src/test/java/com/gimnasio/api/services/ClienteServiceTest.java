@@ -36,7 +36,7 @@ class ClienteServiceTest {
     @BeforeEach
     void setUp() {
         clienteService = new ClienteServiceImpl(clienteRepository, passwordEncoder);
-        clientePrueba = new Cliente(1, "Carlos", "Gómez", "123456789", null, null, EstadoCliente.INACTIVO);
+        clientePrueba = new Cliente(1, "Carlos", "Gómez", "123456789", null, null, EstadoCliente.INACTIVO, null);
     }
 
     @Test
@@ -44,7 +44,7 @@ class ClienteServiceTest {
     void crear_deberiaGuardarClienteConEstadoInactivo() {
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Cliente nuevo = new Cliente(null, "Carlos", "Gómez", "123456789", null, null, null);
+        Cliente nuevo = new Cliente(null, "Carlos", "Gómez", "123456789", null, null, null, null);
         Cliente resultado = clienteService.crear(nuevo);
 
         assertNotNull(resultado);
@@ -57,7 +57,7 @@ class ClienteServiceTest {
     void crear_sinCredenciales_deberiaGuardarClienteSinEmailNiContrasena() {
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Cliente nuevo = new Cliente(null, "Carlos", "Gómez", "123456789", null, null, null);
+        Cliente nuevo = new Cliente(null, "Carlos", "Gómez", "123456789", null, null, null, null);
         Cliente resultado = clienteService.crear(nuevo);
 
         assertNull(resultado.getEmail());
@@ -66,11 +66,35 @@ class ClienteServiceTest {
     }
 
     @Test
+    @DisplayName("Crear sin credenciales debe generar un código de activación para que el cliente complete /registro después")
+    void crear_sinCredenciales_deberiaGenerarCodigoDeActivacion() {
+        when(clienteRepository.existsByCodigoActivacion(any())).thenReturn(false);
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Cliente nuevo = new Cliente(null, "Carlos", "Gómez", "123456789", null, null, null, null);
+        Cliente resultado = clienteService.crear(nuevo);
+
+        assertNotNull(resultado.getCodigoActivacion());
+    }
+
+    @Test
+    @DisplayName("Crear con credenciales directas no debe generar código de activación (no hace falta /registro)")
+    void crear_conCredenciales_noDeberiaGenerarCodigoDeActivacion() {
+        when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.empty());
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Cliente nuevo = new Cliente(null, "Carlos", "Gómez", "123456789", "carlos@mail.com", "clave123", null, null);
+        Cliente resultado = clienteService.crear(nuevo);
+
+        assertNull(resultado.getCodigoActivacion());
+    }
+
+    @Test
     @DisplayName("Crear debe ignorar cualquier id enviado en el body (no debe poder pisar otra fila)")
     void crear_conIdEnviado_deberiaIgnorarlo() {
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Cliente conIdAjeno = new Cliente(99, "Carlos", "Gómez", "123456789", null, null, null);
+        Cliente conIdAjeno = new Cliente(99, "Carlos", "Gómez", "123456789", null, null, null, null);
         Cliente resultado = clienteService.crear(conIdAjeno);
 
         assertNull(resultado.getId());
@@ -81,7 +105,7 @@ class ClienteServiceTest {
     void crear_conEstadoExplicito_deberiaForzarInactivo() {
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Cliente conEstadoActivo = new Cliente(null, "Carlos", "Gómez", "123456789", null, null, EstadoCliente.ACTIVO);
+        Cliente conEstadoActivo = new Cliente(null, "Carlos", "Gómez", "123456789", null, null, EstadoCliente.ACTIVO, null);
         Cliente resultado = clienteService.crear(conEstadoActivo);
 
         assertEquals(EstadoCliente.INACTIVO, resultado.getEstado());
@@ -93,7 +117,7 @@ class ClienteServiceTest {
         when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.empty());
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Cliente nuevo = new Cliente(null, "Carlos", "Gómez", "123456789", "carlos@mail.com", "claveEnTextoPlano", null);
+        Cliente nuevo = new Cliente(null, "Carlos", "Gómez", "123456789", "carlos@mail.com", "claveEnTextoPlano", null, null);
         Cliente resultado = clienteService.crear(nuevo);
 
         assertNotEquals("claveEnTextoPlano", resultado.getContrasena());
@@ -105,7 +129,7 @@ class ClienteServiceTest {
     void crear_conEmailDuplicado_deberiaLanzarExcepcion() {
         when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
 
-        Cliente nuevo = new Cliente(null, "Otro", "Cliente", "987654321", "carlos@mail.com", "otraClave", null);
+        Cliente nuevo = new Cliente(null, "Otro", "Cliente", "987654321", "carlos@mail.com", "otraClave", null, null);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
             clienteService.crear(nuevo);
@@ -154,44 +178,44 @@ class ClienteServiceTest {
     }
 
     @Test
-    @DisplayName("registrarCredenciales debe completar email y contraseña (hasheada) de un cliente existente")
-    void registrarCredenciales_conDatosCoincidentes_deberiaCompletarPerfil() {
-        when(clienteRepository.findByNombreIgnoreCaseAndApellidoIgnoreCaseAndTelefono("Carlos", "Gómez", "123456789"))
-                .thenReturn(Optional.of(clientePrueba));
+    @DisplayName("registrarCredenciales debe completar email y contraseña (hasheada) y anular el código usado")
+    void registrarCredenciales_conCodigoValido_deberiaCompletarPerfilYAnularCodigo() {
+        clientePrueba.setCodigoActivacion("ABCD1234");
+        when(clienteRepository.findByCodigoActivacion("ABCD1234")).thenReturn(Optional.of(clientePrueba));
         when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.empty());
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Cliente resultado = clienteService.registrarCredenciales(
-                "Carlos", "Gómez", "123456789", "carlos@mail.com", "claveEnTextoPlano");
+                "ABCD1234", "carlos@mail.com", "claveEnTextoPlano");
 
         assertEquals("carlos@mail.com", resultado.getEmail());
         assertNotEquals("claveEnTextoPlano", resultado.getContrasena());
         assertTrue(passwordEncoder.matches("claveEnTextoPlano", resultado.getContrasena()));
+        assertNull(resultado.getCodigoActivacion());
     }
 
     @Test
-    @DisplayName("registrarCredenciales debe lanzar excepción si no encuentra un cliente con esos datos")
-    void registrarCredenciales_sinCoincidencia_deberiaLanzarExcepcion() {
-        when(clienteRepository.findByNombreIgnoreCaseAndApellidoIgnoreCaseAndTelefono(any(), any(), any()))
-                .thenReturn(Optional.empty());
+    @DisplayName("registrarCredenciales debe lanzar excepción si el código de activación no existe")
+    void registrarCredenciales_conCodigoInvalido_deberiaLanzarExcepcion() {
+        when(clienteRepository.findByCodigoActivacion(any())).thenReturn(Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> {
-            clienteService.registrarCredenciales("Nadie", "Desconocido", "000", "x@mail.com", "clave");
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+            clienteService.registrarCredenciales("NOEXISTE", "x@mail.com", "clave");
         });
 
-        assertTrue(ex.getMessage().contains("no encontrado"));
+        assertTrue(ex.getMessage().contains("Código de activación inválido"));
         verify(clienteRepository, never()).save(any(Cliente.class));
     }
 
     @Test
     @DisplayName("registrarCredenciales debe lanzar excepción si el cliente ya tiene una cuenta")
     void registrarCredenciales_conCuentaExistente_deberiaLanzarExcepcion() {
+        clientePrueba.setCodigoActivacion("ABCD1234");
         clientePrueba.setContrasena("$2a$10$yaHasheada");
-        when(clienteRepository.findByNombreIgnoreCaseAndApellidoIgnoreCaseAndTelefono("Carlos", "Gómez", "123456789"))
-                .thenReturn(Optional.of(clientePrueba));
+        when(clienteRepository.findByCodigoActivacion("ABCD1234")).thenReturn(Optional.of(clientePrueba));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-            clienteService.registrarCredenciales("Carlos", "Gómez", "123456789", "otro@mail.com", "clave");
+            clienteService.registrarCredenciales("ABCD1234", "otro@mail.com", "clave");
         });
 
         assertTrue(ex.getMessage().contains("Ya existe una cuenta"));

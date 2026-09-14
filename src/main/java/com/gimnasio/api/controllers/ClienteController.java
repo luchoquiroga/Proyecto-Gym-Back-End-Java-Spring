@@ -1,5 +1,6 @@
 package com.gimnasio.api.controllers;
 
+import com.gimnasio.api.dto.ClienteAltaResponse;
 import com.gimnasio.api.dto.ClienteLoginRequest;
 import com.gimnasio.api.dto.ClienteLoginResponse;
 import com.gimnasio.api.dto.ClienteRefreshResponse;
@@ -71,9 +72,9 @@ public class ClienteController {
     }
 
     @PostMapping
-    public ResponseEntity<Cliente> crear(@RequestBody Cliente cliente) {
+    public ResponseEntity<ClienteAltaResponse> crear(@RequestBody Cliente cliente) {
         Cliente nuevoCliente = clienteService.crear(cliente);
-        return ResponseEntity.status(HttpStatus.CREATED).body(nuevoCliente);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ClienteAltaResponse.desde(nuevoCliente));
     }
 
     @PutMapping("/{id}")
@@ -97,8 +98,7 @@ public class ClienteController {
     @PostMapping("/registro")
     public ResponseEntity<?> registro(@Valid @RequestBody ClienteRegistroRequest request) {
         clienteService.registrarCredenciales(
-                request.getNombre(), request.getApellido(), request.getTelefono(),
-                request.getEmail(), request.getContrasena());
+                request.getCodigoActivacion(), request.getEmail(), request.getContrasena());
         return ResponseEntity.ok(new MensajeResponse("Registro completado, ya podés iniciar sesión"));
     }
 

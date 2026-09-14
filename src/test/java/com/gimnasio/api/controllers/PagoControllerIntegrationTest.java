@@ -95,14 +95,16 @@ class PagoControllerIntegrationTest {
 
     private Cliente crearClienteConPago(String nombre, String apellido, String telefono,
                                          String email, String contrasena) throws Exception {
+        // El teléfono ya es único por test y cabe en el VARCHAR(10) de codigo_activacion,
+        // así que sirve como código de activación de prueba sin riesgo de colisión.
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, nombre, apellido, telefono, null, null, EstadoCliente.ACTIVO));
+                new Cliente(null, nombre, apellido, telefono, null, null, EstadoCliente.ACTIVO, telefono));
 
         if (email != null) {
             mockMvc.perform(post("/api/v1/clientes/registro")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(
-                                    new ClienteRegistroRequest(nombre, apellido, telefono, email, contrasena))))
+                                    new ClienteRegistroRequest(telefono, email, contrasena))))
                     .andExpect(status().isOk());
         }
 

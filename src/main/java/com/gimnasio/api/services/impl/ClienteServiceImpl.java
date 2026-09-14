@@ -9,6 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.List;
 
 /**
@@ -17,6 +18,11 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class ClienteServiceImpl implements ClienteService {
+
+    // Sin 0/O ni 1/I: se dicta en persona (o por teléfono) y esos pares se confunden fácil.
+    private static final String ALFABETO_CODIGO_ACTIVACION = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final int LARGO_CODIGO_ACTIVACION = 8;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final ClienteRepository clienteRepository;
     private final PasswordEncoder passwordEncoder;
@@ -58,6 +64,10 @@ public class ClienteServiceImpl implements ClienteService {
 
         if (cliente.getContrasena() != null && !cliente.getContrasena().isBlank()) {
             cliente.setContrasena(passwordEncoder.encode(cliente.getContrasena()));
+        } else {
+            // Sin credenciales todavía: el cliente las va a completar él mismo en
+            // /registro, probando que es quien dice ser con este código de un solo uso.
+            cliente.setCodigoActivacion(generarCodigoActivacionUnico());
         }
 
         return clienteRepository.save(cliente);
@@ -94,12 +104,10 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     @Transactional
-    public Cliente registrarCredenciales(String nombre, String apellido, String telefono,
-                                          String email, String contrasena) {
-        Cliente cliente = clienteRepository
-                .findByNombreIgnoreCaseAndApellidoIgnoreCaseAndTelefono(nombre, apellido, telefono)
-                .orElseThrow(() -> new RuntimeException(
-                        "Cliente no encontrado con esos datos. Acercate al gimnasio para verificar tu registro."));
+    public Cliente registrarCredenciales(String codigoActivacion, String email, String contrasena) {
+        Cliente cliente = clienteRepository.findByCodigoActivacion(codigoActivacion)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Código de activación inválido o ya utilizado. Pedí uno nuevo en el gimnasio."));
 
         if (cliente.getContrasena() != null) {
             throw new IllegalArgumentException("Ya existe una cuenta registrada para este cliente. Iniciá sesión.");
@@ -111,7 +119,25 @@ public class ClienteServiceImpl implements ClienteService {
 
         cliente.setEmail(email);
         cliente.setContrasena(passwordEncoder.encode(contrasena));
+        // De un solo uso: una vez canjeado no debe volver a servir para reclamar la cuenta.
+        cliente.setCodigoActivacion(null);
         return clienteRepository.save(cliente);
+    }
+
+    private String generarCodigoActivacionUnico() {
+        String codigo;
+        do {
+            codigo = generarCodigoActivacion();
+        } while (clienteRepository.existsByCodigoActivacion(codigo));
+        return codigo;
+    }
+
+    private String generarCodigoActivacion() {
+        StringBuilder codigo = new StringBuilder(LARGO_CODIGO_ACTIVACION);
+        for (int i = 0; i < LARGO_CODIGO_ACTIVACION; i++) {
+            codigo.append(ALFABETO_CODIGO_ACTIVACION.charAt(RANDOM.nextInt(ALFABETO_CODIGO_ACTIVACION.length())));
+        }
+        return codigo.toString();
     }
 
     @Override
