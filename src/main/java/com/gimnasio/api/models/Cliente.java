@@ -1,6 +1,7 @@
 package com.gimnasio.api.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -36,7 +37,12 @@ public class Cliente {
 
     /**
      * Contraseña hasheada (nunca en texto plano) del cliente para el portal web.
+     * WRITE_ONLY: se puede recibir en un alta directa por staff (POST /clientes),
+     * pero nunca debe viajar de vuelta en ninguna respuesta — antes de esto, GET
+     * /clientes, /clientes/{id} y /clientes/buscar devolvían la entidad completa
+     * y filtraban el hash BCrypt a cualquier ADMIN/GERENCIA (o al propio cliente).
      */
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(length = 255)
     private String contrasena;
 

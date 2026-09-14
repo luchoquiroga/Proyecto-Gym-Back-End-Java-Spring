@@ -1,5 +1,6 @@
 package com.gimnasio.api.models;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.gimnasio.api.models.enums.RolUsuario;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -20,6 +21,10 @@ public class Usuario {
     @Column(nullable = false, length = 100)
     private String nombre;
 
+    // WRITE_ONLY: mismo motivo que Cliente.contrasena — POST /usuarios y PUT
+    // /usuarios/cambiar-contrasena devuelven la entidad completa y filtrarían
+    // el hash BCrypt al ADMIN que hizo la llamada.
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(nullable = false)
     private String contrasena;
 

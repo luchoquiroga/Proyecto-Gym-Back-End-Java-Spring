@@ -252,7 +252,8 @@ class ClienteControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/clientes/" + propioId).header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(Integer.parseInt(propioId)));
+                .andExpect(jsonPath("$.id").value(Integer.parseInt(propioId)))
+                .andExpect(jsonPath("$.contrasena").doesNotExist());
     }
 
     @Test
