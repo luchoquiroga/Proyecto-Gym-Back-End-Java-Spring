@@ -83,6 +83,9 @@ public class SecurityConfig {
                                 .hasAnyRole("ADMIN", "GERENCIA")
                         .requestMatchers(HttpMethod.GET, "/api/v1/pagos", "/api/v1/pagos/buscar")
                                 .hasAnyRole("ADMIN", "GERENCIA")
+                        // ADMIN o GERENCIA: registrar un pago es una operación de caja, no
+                        // self-service (un Cliente no puede registrarse pagos a sí mismo ni a otros)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/pagos").hasAnyRole("ADMIN", "GERENCIA")
                         // ADMIN o GERENCIA: alta/edición/baja de clientes (un Cliente autenticado
                         // no debe poder crear, modificar ni cambiar el estado de ningún registro,
                         // ni siquiera el propio, vía estos endpoints)
