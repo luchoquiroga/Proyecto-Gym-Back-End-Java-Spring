@@ -99,16 +99,28 @@ public class ClienteServiceImpl implements ClienteService {
         clienteExistente.setTelefono(request.getTelefono());
 
         Cliente guardado = clienteRepository.save(clienteExistente);
-        return ClienteResponse.desde(guardado, fechaVencimientoVigente(guardado.getId()));
+        return ClienteResponse.desde(guardado, ultimoPago(guardado.getId()));
     }
 
     @Override
     @Transactional
     public ClienteResponse cambiarEstado(Integer id, EstadoCliente nuevoEstado) {
+        // Un socio se activa pagando, nunca con un cambio de estado a mano. Sin esto, este
+        // endpoint es la puerta de atrás de las dos reglas de dinero de la Fase 1: que un
+        // pago menor al precio del plan se rechaza, y que la activación solo ocurre si el
+        // vencimiento calculado es futuro. Las dos se esquivaban con un clic.
+        // Si alguna vez hace falta un socio de cortesía, eso es un pago de importe cero
+        // contra un plan de cortesía -- que queda registrado y auditado -- y no un estado
+        // que aparece sin que nadie sepa quién lo puso.
+        if (nuevoEstado == EstadoCliente.ACTIVO) {
+            throw new IllegalArgumentException(
+                    "Un socio no se activa a mano: se activa registrándole un pago válido.");
+        }
+
         Cliente cliente = obtenerPorId(id);
         cliente.setEstado(nuevoEstado);
         Cliente guardado = clienteRepository.save(cliente);
-        return ClienteResponse.desde(guardado, fechaVencimientoVigente(guardado.getId()));
+        return ClienteResponse.desde(guardado, ultimoPago(guardado.getId()));
     }
 
     @Override
@@ -190,36 +202,36 @@ public class ClienteServiceImpl implements ClienteService {
         // diarios comprados la misma fecha) aparece dos veces. Sin función de merge,
         // Collectors.toMap tira IllegalStateException por clave duplicada; como la fecha
         // empatada es la misma, quedarse con cualquiera de las dos es correcto.
-        Map<Integer, LocalDate> fechasVencimientoPorCliente = pagoRepository.findUltimoPagoPorCadaCliente().stream()
+        Map<Integer, Pago> ultimoPagoPorCliente = pagoRepository.findUltimoPagoPorCadaCliente().stream()
                 .collect(Collectors.toMap(
                         pago -> pago.getCliente().getId(),
-                        Pago::getFechaVencimiento,
-                        (unaFecha, otraIgual) -> unaFecha));
+                        pago -> pago,
+                        (unPago, otroEmpatado) -> unPago));
 
         return PaginaResponse.desde(paginaClientes,
-                cliente -> ClienteResponse.desde(cliente, fechasVencimientoPorCliente.get(cliente.getId())));
+                cliente -> ClienteResponse.desde(cliente, ultimoPagoPorCliente.get(cliente.getId())));
     }
 
     @Override
     @Transactional(readOnly = true)
     public ClienteResponse obtenerRespuestaPorId(Integer id) {
         Cliente cliente = obtenerPorId(id);
-        return ClienteResponse.desde(cliente, fechaVencimientoVigente(cliente.getId()));
+        return ClienteResponse.desde(cliente, ultimoPago(cliente.getId()));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ClienteResponse> buscarPorNombreConVencimiento(String nombre) {
         return clienteRepository.findByNombreContainingIgnoreCase(nombre).stream()
-                .map(cliente -> ClienteResponse.desde(cliente, fechaVencimientoVigente(cliente.getId())))
+                .map(cliente -> ClienteResponse.desde(cliente, ultimoPago(cliente.getId())))
                 .toList();
     }
 
-    // Fecha de vencimiento vigente de UN solo cliente: acá no hace falta traer la tabla
-    // entera con findUltimoPagoPorCadaCliente(), alcanza con la última fila de ese socio.
-    private LocalDate fechaVencimientoVigente(Integer clienteId) {
-        return pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(clienteId)
-                .map(Pago::getFechaVencimiento)
+    // Último pago de UN solo cliente, del que salen su fecha de vencimiento y su plan
+    // vigente: acá no hace falta traer la tabla entera con findUltimoPagoPorCadaCliente(),
+    // alcanza con la última fila de ese socio.
+    private Pago ultimoPago(Integer clienteId) {
+        return pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(clienteId)
                 .orElse(null);
     }
 }

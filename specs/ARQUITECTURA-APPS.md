@@ -21,8 +21,15 @@ permitido para un rol y aun así no ser consumido por ninguna app todavía.
 | App | Estado real | Principal | Cómo habla con el API |
 |---|---|---|---|
 | Escritorio (Swing) | **En producción**, único consumidor real | `Usuario` (ADMIN/GERENCIA) | HTTP directo contra Render (`ApiConfig.BASE_URL`) |
-| Web | No existe todavía | — | — |
+| Web | **Maqueta navegable** (React 19 + Vite + TS), escrita el 3–5/09 contra el contrato viejo; auth de staff real, cuatro lecturas, ninguna escritura | `Usuario` (solo ADMIN: a GERENCIA la bloquea a propósito, y el portal del socio no se puede alcanzar) | axios con access token en memoria + silent refresh por cookie |
 | Mobile | No existe todavía | — | — |
+
+Corregido el 2026-09-15: hasta ese día este documento decía que la web no
+existía. Existe, en `C:\Users\lucia\Project Visual Studio Code\Gym-Project-Front-End`
+(sin git todavía), y sus tickets de migración al contrato nuevo están en
+`2026-09-15-tickets-web.md`. Lo que no existe es un área para GERENCIA: la web
+la manda a "acceso restringido", decisión del diseño viejo que hay que revertir
+para que la web pueda reemplazar al escritorio.
 
 Endpoints que la app Swing consume hoy (leídos de su código, no de un plan):
 `/usuarios/login`, `/usuarios`, `/clientes`, `/clientes/{id}`, `/planes`,
@@ -60,10 +67,81 @@ todo el documento:
 |---|---|---|---|
 | Web | Staff **y** socios (dos áreas, un solo frontend) | Sí | La suya |
 | Escritorio | Staff (ADMIN y GERENCIA) | No — hereda la de la web | **Ninguna** |
-| Mobile | **Solo ADMIN** | Sí | Subconjunto, orientado a métricas |
+| Mobile | **Solo ADMIN** — *congelada el 2026-09-15, ver §2.1* | Sí, cuando se retome | Subconjunto, orientado a métricas |
 
 Mientras la migración no ocurra, la Swing actual sigue siendo un consumidor
 directo y este documento describe un destino, no el presente.
+
+---
+
+## 2.1 Alcance definido de cada área (2026-09-15)
+
+Definido por el dueño del proyecto en la conversación del 2026-09-15, cuando la
+web pasó a ser también el futuro reemplazo del escritorio. Esto es **el alcance
+comprometido**, no una lista de deseos: lo que no está acá no se construye sin
+volver a esta sección.
+
+**La web tiene dos portales**, y el de staff tiene adentro dos niveles:
+
+### Portal del socio (`CLIENTE`) — solo lectura
+
+Ve el estado general de su registro: si está al día, **cuántos días le faltan
+para pagar la cuota** (se calcula restando `fechaVencimiento` contra hoy) y sus
+datos, por ejemplo qué teléfono tiene asociado.
+
+**No modifica nada, por ahora.** Ni sus datos de contacto ni su email. Si un
+teléfono está mal cargado, lo corrige el staff. Consecuencia a tener presente:
+el email tampoco lo edita nadie —es la identidad de login del socio— así que un
+socio que pierde el acceso a su casilla hoy no tiene salida. Anotado, sin
+resolver.
+
+### Portal de staff, nivel GERENCIA (y ADMIN, que puede todo)
+
+Es el trabajo de mostrador, o sea lo que hoy hace la app de escritorio:
+
+- Socios: **listar, buscar, crear, modificar e inhabilitar**.
+- **Crear pagos** (cobrar).
+- **Consultar** planes.
+
+Nada de esto muestra montos históricos ni agregados: GERENCIA cobra y opera,
+pero no lee la caja. Para saber si un socio está al día usa estado +
+`fechaVencimiento`.
+
+### Portal de staff, nivel ADMIN
+
+Todo lo anterior, más:
+
+- **Dashboard**, con el desglose de las ganancias — listando los pagos del mes,
+  no solo el total agregado.
+- Planes: **modificar y eliminar**.
+- **Anular pagos** cargados por error (ver más abajo: anular, no borrar).
+- **Crear cuentas de staff** (otros administradores o gerentes) y
+  **desactivarlas**.
+
+### Decisiones que salieron de definir esto
+
+1. **Un pago mal cargado se anula, no se borra ni se edita.** El pago queda en
+   la tabla marcado como anulado, con quién lo anuló, cuándo y por qué; el
+   correcto se carga de nuevo. Borrarlo tenía tres efectos invisibles desde la
+   pantalla: perdía `registrado_por` (la auditoría de la Fase 1), movía hacia
+   atrás la `fechaVencimiento` del socio —que se calcula del último pago— sin
+   que nada lo avisara, y cambiaba retroactivamente las ganancias de un mes ya
+   cerrado. Editar el monto es peor: cambia la plata sin dejar rastro de cuál
+   era antes.
+2. **Anular es solo de ADMIN.** Es la misma línea de siempre: GERENCIA cobra,
+   pero no toca la caja ya registrada. Si GERENCIA se equivoca, avisa.
+3. **El estado ACTIVO de un socio lo determina únicamente un pago válido.**
+   `PATCH /clientes/{id}/estado` deja hoy que ADMIN o GERENCIA lo pongan ACTIVO
+   a mano, que es la puerta de atrás de la regla "no hay pago parcial" de la
+   Fase 1. Pasa a servir solo para inhabilitar.
+4. **Mobile queda congelada.** No aparece en el alcance, y con la web
+   absorbiendo además el trabajo del escritorio son demasiados frentes
+   abiertos a la vez. La decisión de §2 (mobile es del dueño, solo consulta)
+   sigue en pie para cuando se retome; lo que se congela es construirla ahora.
+
+Los tickets de backend que hacen falta para sostener este alcance están en
+`2026-09-15-fase6-backend-para-la-web.md`; los de la web, en
+`2026-09-15-tickets-web.md`.
 
 ---
 
@@ -236,27 +314,24 @@ para cuando la app exista y se sepa si realmente molesta.
 
 ## 7. Decisiones abiertas
 
-1. **¿ADMIN opera desde mobile, o solo consulta?** El mapa de §4 lo dejó como
-   app de solo lectura (buscar, mirar, métricas), sin alta ni cobro, porque
-   quien opera el mostrador es GERENCIA y GERENCIA no entra a mobile. Si el
-   dueño igual quiere poder cobrar o activar un cliente desde el celular, se
-   agregan esas filas — no requiere cambios de backend, los permisos ya
-   existen.
-2. **GERENCIA ve todos los pagos (§3.1).** Hoy `GET /pagos` y `GET
-   /pagos/buscar` están abiertos a GERENCIA, así que esconderle `/dashboard`
-   no le esconde la información del negocio. Si la intención es que GERENCIA
-   no vea el agregado, hace falta separar "pagos de un cliente puntual"
-   (GERENCIA sí) de "listado global" (solo ADMIN). Es cambio de modelo de
-   autorización: spec propia + `AUTHZ-MATRIX.md` + `/security-review`.
-3. **¿Cuándo migra el escritorio a shell de la web?** Hasta que eso pase, la
-   Swing sigue siendo un consumidor directo y con superficie propia. El
-   documento describe el destino; el presente es §1.
-4. **¿La web es un solo frontend con dos áreas, o dos frontends?** Afecta al
-   escritorio: si el shell carga la web entera, staff y socios comparten
-   build, y hay que asegurar que el área de staff no sea alcanzable por un
-   socio logueado (eso es autorización de frontend, y el backend igual tiene
-   que sostenerla por su cuenta).
-5. **Refresh token en mobile** — §6.
+Cerradas el 2026-09-15 (ver §2.1), se dejan anotadas para no reabrirlas:
+
+- ~~¿ADMIN opera desde mobile o solo consulta?~~ Mobile queda congelada.
+- ~~GERENCIA ve todos los pagos.~~ Cerrado por la Fase 2 del replanteo: las
+  cuatro lecturas de pagos son de ADMIN.
+- ~~¿La web es un frontend con dos áreas?~~ Sí: dos portales, y el de staff con
+  dos niveles adentro.
+
+Siguen abiertas:
+
+1. **¿Cuándo migra el escritorio a shell de la web?** La condición no es de
+   calendario sino de alcance: recién cuando la web cubra el mostrador (socios
+   + cobro) tiene sentido, porque es lo que el escritorio hace hoy.
+2. **El socio no puede cambiar su email**, y es su identidad de login. Si
+   pierde el acceso a la casilla, hoy no hay salida. No bloquea el alcance
+   definido, pero va a aparecer en cuanto el portal tenga uso real.
+3. **Refresh token fuera del browser** — §6. Deja de ser urgente al congelar
+   mobile, pero vuelve con ella.
 
 ---
 

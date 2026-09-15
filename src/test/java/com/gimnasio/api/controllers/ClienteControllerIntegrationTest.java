@@ -431,11 +431,27 @@ class ClienteControllerIntegrationTest {
 
         mockMvc.perform(patch("/api/v1/clientes/" + cliente.getId() + "/estado")
                         .header("Authorization", "Bearer " + tokenAdmin)
-                        .param("nuevoEstado", "ACTIVO"))
+                        .param("nuevoEstado", "MOROSO"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.estado").value("ACTIVO"))
+                .andExpect(jsonPath("$.estado").value("MOROSO"))
                 .andExpect(jsonPath("$.contrasena").doesNotExist())
                 .andExpect(jsonPath("$.codigoActivacion").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("PATCH /clientes/{id}/estado no puede activar a un socio: eso lo hace un pago")
+    void cambiarEstado_aActivo_deberiaDevolver400() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Bruno", "Paz", "555-P9", null, null, EstadoCliente.INACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(patch("/api/v1/clientes/" + cliente.getId() + "/estado")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .param("nuevoEstado", "ACTIVO"))
+                .andExpect(status().isBadRequest());
+
+        assertEquals(EstadoCliente.INACTIVO,
+                clienteRepository.findById(cliente.getId()).orElseThrow().getEstado());
     }
 
     @Test

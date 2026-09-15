@@ -19,6 +19,7 @@ Roles/principales que existen hoy:
 | POST | `/login` | Público | |
 | POST | `/refresh` | Público (requiere cookie `refreshToken` válida) | |
 | POST | `/logout` | Público (requiere cookie, es no-op si no hay) | |
+| GET | `` (listado) | ADMIN | agregado 2026-09-15 (Fase 6): paginado, **incluye las cuentas dadas de baja** — son las que hay que ver para reactivarlas, `activo` las distingue |
 | POST | `` | ADMIN | crea un `Usuario` nuevo (alta de staff) |
 | PUT | `/cambiar-contrasena` | ADMIN, GERENCIA — **solo la propia** | 2026-09-15: antes era solo-ADMIN y elegía la cuenta por un `nombre` del body; ahora sale del `AuthPrincipal` y exige la contraseña actual. La regla es `hasAnyRole`, no el catch-all: bajo `.authenticated()` entraría un CLIENTE y su id se solaparía con el de un `Usuario` |
 | PUT | `/{id}/contrasena` | ADMIN | reset administrativo (el ADMIN no sabe la clave anterior). El service lo rechaza contra uno mismo: para la cuenta propia hay que usar `/cambiar-contrasena`, que pide la actual |
@@ -38,17 +39,18 @@ Roles/principales que existen hoy:
 | GET | `/{id}` | ADMIN, GERENCIA, o el propio CLIENTE (`principal.id() == id`) | chequeo en `ClienteController.obtenerPorId`, no en `SecurityConfig` |
 | POST | `` (alta) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado |
 | PUT | `/{id}` | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía editar cualquier registro) |
-| PATCH | `/{id}/estado` | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía auto-activarse sin pagar) |
+| PATCH | `/{id}/estado` | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía auto-activarse sin pagar). **2026-09-15 (Fase 6): ya no acepta `ACTIVO`** — un socio se activa registrándole un pago válido, no con un cambio de estado a mano |
 | DELETE | `/{id}` | ADMIN, GERENCIA | **baja lógica**: pone `estado = INACTIVO` (`ClienteServiceImpl.darDeBaja`), nunca borra la fila, así que no choca con `pagos`. Agregado 2026-09-14, antes cualquier autenticado |
 
 ## `/api/v1/pagos`
 
 | Método | Ruta | Quién puede | Notas |
 |---|---|---|---|
-| GET | `` (listado) | ADMIN | 2026-09-15: sacado a GERENCIA (ver Historial) |
+| GET | `` (listado) | ADMIN | 2026-09-15: sacado a GERENCIA (ver Historial). Acepta `?desde=&hasta=` sobre la fecha de cobro, para desglosar las ganancias de un mes |
 | GET | `/buscar` | ADMIN | 2026-09-15: sacado a GERENCIA |
 | GET | `/cliente/{clienteId}` | ADMIN, o el propio CLIENTE dueño | chequeo en `PagoController.obtenerPagosPorCliente`; 2026-09-15 dejó de aceptar GERENCIA |
 | GET | `/{id}` | ADMIN, o el propio CLIENTE dueño del pago | agregado 2026-09-14, antes cualquier autenticado; chequeo en `PagoController.obtenerPorId` vía `pago.getCliente().getId()`; 2026-09-15 dejó de aceptar GERENCIA |
+| POST | `/{id}/anulacion` | ADMIN | agregado 2026-09-15 (Fase 6): marca el pago como anulado con motivo obligatorio, quien anula sale del token. **No borra la fila y no existe editar un pago**: corregir un importe es anular y volver a cobrar. GERENCIA cobra pero no toca caja ya registrada |
 | POST | `` (registrar pago) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía registrarse pagos a sí mismo o a otros). Desde 2026-09-15 guarda `registrado_por` tomado del token (nunca del body) y rechaza montos menores al precio del plan |
 
 ## `/api/v1/planes`

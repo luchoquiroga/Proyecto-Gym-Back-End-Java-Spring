@@ -34,7 +34,7 @@ class DashboardServiceTest {
         LocalDate fin = LocalDate.of(2026, 8, 31);
 
         when(pagoRepository.sumarMontoAbonadoEntre(inicio, fin)).thenReturn(97500.0);
-        when(pagoRepository.countByFechaPagoBetween(inicio, fin)).thenReturn(3L);
+        when(pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(inicio, fin)).thenReturn(3L);
 
         GananciasMensualesResponse resultado = dashboardService.obtenerGananciasMensuales(2026, 8);
 
@@ -52,7 +52,7 @@ class DashboardServiceTest {
         LocalDate fin = mesActual.atEndOfMonth();
 
         when(pagoRepository.sumarMontoAbonadoEntre(inicio, fin)).thenReturn(0.0);
-        when(pagoRepository.countByFechaPagoBetween(inicio, fin)).thenReturn(0L);
+        when(pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(inicio, fin)).thenReturn(0L);
 
         GananciasMensualesResponse resultado = dashboardService.obtenerGananciasMensuales(null, null);
 

@@ -341,6 +341,46 @@ class UsuarioControllerIntegrationTest {
         login("admin", "admin123456789");
     }
 
+    @Test
+    @DisplayName("GET /usuarios devuelve la página de cuentas de staff, sin contraseñas")
+    void listarUsuarios_conTokenAdmin_deberiaDevolverPaginaSinContrasenas() throws Exception {
+        String tokenAdmin = tokenDeAdmin();
+
+        mockMvc.perform(get("/api/v1/usuarios").header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido").isArray())
+                .andExpect(jsonPath("$.totalElementos").exists())
+                .andExpect(jsonPath("$.contenido[*].contrasena").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("El listado de staff incluye las cuentas dadas de baja, que son las que hay que reactivar")
+    void listarUsuarios_deberiaIncluirLasDadasDeBaja() throws Exception {
+        String tokenAdmin = tokenDeAdmin();
+        Integer idStaff = crearStaff(tokenAdmin, "staffListado", "claveStaff123", "GERENCIA");
+
+        mockMvc.perform(delete("/api/v1/usuarios/" + idStaff)
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/usuarios")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .param("size", "200"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido[?(@.nombre == 'staffListado')].activo").value(false));
+    }
+
+    @Test
+    @DisplayName("GERENCIA no puede listar las cuentas de staff")
+    void listarUsuarios_conTokenGerencia_deberiaDevolver403() throws Exception {
+        String tokenAdmin = tokenDeAdmin();
+        crearStaff(tokenAdmin, "gerenteMiron", "claveGerente123", "GERENCIA");
+        String tokenGerencia = extraerCampo(login("gerenteMiron", "claveGerente123"), "accessToken");
+
+        mockMvc.perform(get("/api/v1/usuarios").header("Authorization", "Bearer " + tokenGerencia))
+                .andExpect(status().isForbidden());
+    }
+
     private String tokenDeAdmin() throws Exception {
         return extraerCampo(login("admin", "admin123456789"), "accessToken");
     }

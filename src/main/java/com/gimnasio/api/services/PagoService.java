@@ -13,11 +13,36 @@ import java.util.List;
 public interface PagoService {
 
     /**
-     * Obtiene el listado histórico de todos los pagos registrados, paginado: es el
-     * listado completo sin acotar por cliente, así que sin paginar podía devolver toda
-     * la tabla en una sola respuesta.
+     * Obtiene el listado histórico de pagos registrados, paginado: es el listado completo
+     * sin acotar por cliente, así que sin paginar podía devolver toda la tabla en una sola
+     * respuesta.
+     *
+     * <p>Los dos límites son opcionales e independientes y se aplican sobre la fecha de
+     * cobro: sin ninguno devuelve todo, como antes. Existen para poder desglosar las
+     * ganancias de un mes —ver qué pagos componen el total que informa el dashboard— sin
+     * traerse el histórico entero para filtrarlo en el navegador.
+     *
+     * @param desde primera fecha de cobro incluida, o null para no acotar por abajo.
+     * @param hasta última fecha de cobro incluida, o null para no acotar por arriba.
+     * @throws IllegalArgumentException si `desde` es posterior a `hasta`.
      */
-    Page<Pago> obtenerTodos(Pageable pageable);
+    Page<Pago> obtenerTodos(LocalDate desde, LocalDate hasta, Pageable pageable);
+
+    /**
+     * Anula un pago cargado por error: la fila se conserva —con quién lo anuló, cuándo y
+     * por qué— pero deja de contar para las ganancias y para la fecha de vencimiento del
+     * socio, y el estado del socio se recalcula en el momento.
+     *
+     * <p>No existe borrar un pago ni editarle el monto: corregir un importe es anular este
+     * y registrar el correcto. Ver la migración V6 para el detalle.
+     *
+     * @param id identificador del pago a anular.
+     * @param motivo por qué se anula; obligatorio, es lo que hace que la fila conservada
+     *               sirva como auditoría.
+     * @param anuladoPorId quién anula, tomado del token y nunca del body.
+     * @throws IllegalArgumentException si el pago ya estaba anulado.
+     */
+    Pago anular(Integer id, String motivo, Integer anuladoPorId);
 
     /**
      * Obtiene un pago por su ID único.
