@@ -4,9 +4,11 @@ import com.gimnasio.api.models.Plan;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface PlanRepository extends JpaRepository<Plan, Integer> {
-    Optional<Plan> findByNombre(String nombre);
+    // Búsqueda parcial e insensible a mayúsculas, para alimentar un buscador de UI:
+    // devuelve todas las coincidencias en vez de exigir el nombre exacto.
+    List<Plan> findByNombreContainingIgnoreCase(String nombre);
 }

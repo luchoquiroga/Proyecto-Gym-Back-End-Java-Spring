@@ -34,9 +34,8 @@ public class PlanServiceImpl implements PlanService {
 
     @Override
     @Transactional(readOnly = true)
-    public Plan buscarPorNombre(String nombre) {
-        return planRepository.findByNombre(nombre)
-                .orElseThrow(() -> new RuntimeException("Plan no encontrado con el nombre: " + nombre));
+    public List<Plan> buscarPorNombre(String nombre) {
+        return planRepository.findByNombreContainingIgnoreCase(nombre);
     }
 
     @Override

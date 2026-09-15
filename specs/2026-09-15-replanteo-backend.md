@@ -312,12 +312,39 @@ hasta ahí.** Acá el supuesto era "si no es staff, entonces el id es de un
 cliente". Al agregar o quitar un rol de una condición, hay que releer qué
 asumía la rama de abajo.
 
-**Fase 3 — El contrato del API** (B1, B3, C2)
+**Fase 3 — El contrato del API** (B1, B3, C2) — ✅ implementada el 2026-09-15
 DTOs de request y response por endpoint, y `Pageable` en los listados. Es la
 fase más grande, y la que mejor aprovecha que no haya nada entregado: es el
 momento más barato que va a existir para cambiar el contrato.
 *Tests:* por cada endpoint, un assert de que no aparece ningún campo sensible
 ni ninguna entidad anidada de más.
+
+Decisiones tomadas dentro de esta fase:
+- **Envoltorio propio de paginación** (`PaginaResponse`) en vez de devolver el
+  `Page` de Spring Data. La serialización JSON de `PageImpl` no es parte
+  estable de su contrato — Spring avisa de eso al arrancar — y un cambio suyo
+  arrastraría a las tres apps. La forma de la página es nuestra.
+- **El catálogo de planes no se pagina.** Son un puñado de filas; paginarlo
+  sería sobreingeniería. Solo se paginan clientes y pagos.
+- **`PagoResponse` no expone `registradoPor`.** El CLIENTE dueño puede leer su
+  propio pago por `/{id}` y `/cliente/{id}`, y no hay motivo para contarle qué
+  empleado lo atendió. El dato sigue siendo auditoría interna hasta que exista
+  una vista de pagos solo-ADMIN que justifique exponerlo.
+- **Los endpoints `/buscar` devuelven listas**, no un único resultado con
+  excepción si no encuentra (hueco C2). Además pasan a **coincidencia parcial
+  insensible a mayúsculas**: `findByNombre` era búsqueda exacta, inservible
+  para un buscador de UI donde se escribe y se filtra.
+- **`PUT /clientes/{id}` edita solo datos de contacto.** El email no se edita
+  desde el mostrador porque es la identidad de login del socio en el portal:
+  cambiárselo le sacaría el acceso sin que se entere. La contraseña la define
+  él en `/registro`. Queda documentado en el javadoc de `ClienteRequest`.
+
+Queda sabido y aceptado: el listado paginado de socios resuelve las fechas de
+vencimiento con una consulta que trae el último pago de **todos** los socios,
+no solo los de la página, porque `PagoRepository` no tiene un método acotado a
+un subconjunto de ids. Sigue siendo una sola consulta sin importar el tamaño de
+página, así que no hay N+1; si el volumen crece, el arreglo es un método que
+reciba los ids de la página.
 
 **Fase 4 — Higiene** (A4, B2, B4, B5)
 Contraseña inicial por variable de entorno, `UNIQUE` en `usuarios.nombre`,

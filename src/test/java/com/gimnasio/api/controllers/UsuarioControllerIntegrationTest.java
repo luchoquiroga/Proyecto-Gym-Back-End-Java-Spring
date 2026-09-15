@@ -173,7 +173,7 @@ class UsuarioControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Crear usuario con token ADMIN válido debe devolver 201")
+    @DisplayName("Crear usuario con token ADMIN válido debe devolver 201 y nunca la contraseña")
     void crearUsuario_conTokenAdmin_deberiaDevolver201() throws Exception {
         MvcResult loginResult = login("admin", "admin123");
         String tokenAdmin = extraerCampo(loginResult, "accessToken");
@@ -184,7 +184,23 @@ class UsuarioControllerIntegrationTest {
                         .content("{\"nombre\":\"nuevoStaff\",\"contrasena\":\"clave123\",\"rol\":\"GERENCIA\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.nombre").value("nuevoStaff"))
-                .andExpect(jsonPath("$.rol").value("GERENCIA"));
+                .andExpect(jsonPath("$.rol").value("GERENCIA"))
+                .andExpect(jsonPath("$.contrasena").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("Crear usuario enviando un id en el body debe ignorarlo (no pisa otra fila)")
+    void crearUsuario_conIdEnviado_deberiaIgnorarlo() throws Exception {
+        MvcResult loginResult = login("admin", "admin123");
+        String tokenAdmin = extraerCampo(loginResult, "accessToken");
+
+        mockMvc.perform(post("/api/v1/usuarios")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":9999,\"nombre\":\"otroStaff\",\"contrasena\":\"clave123\",\"rol\":\"GERENCIA\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(org.hamcrest.Matchers.not(9999)))
+                .andExpect(jsonPath("$.nombre").value("otroStaff"));
     }
 
     private MvcResult login(String nombre, String contrasena) throws Exception {

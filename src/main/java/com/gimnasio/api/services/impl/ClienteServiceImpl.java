@@ -1,6 +1,8 @@
 package com.gimnasio.api.services.impl;
 
+import com.gimnasio.api.dto.ClienteRequest;
 import com.gimnasio.api.dto.ClienteResponse;
+import com.gimnasio.api.dto.PaginaResponse;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.Pago;
 import com.gimnasio.api.models.enums.EstadoCliente;
@@ -8,6 +10,8 @@ import com.gimnasio.api.repositories.ClienteRepository;
 import com.gimnasio.api.repositories.PagoRepository;
 import com.gimnasio.api.services.ClienteService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,30 +51,29 @@ public class ClienteServiceImpl implements ClienteService {
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado con id: " + id));
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Cliente buscarPorNombre(String nombre) {
-        return clienteRepository.findByNombre(nombre)
-                .orElseThrow(() -> new RuntimeException("Cliente no encontrado con el nombre: " + nombre));
-    }
 
     @Override
     @Transactional
-    public Cliente crear(Cliente cliente) {
-        // Por regla de negocio, un cliente recién registrado siempre inicia INACTIVO hasta que
-        // abone un pago; no se respeta un "estado" que venga en el body del alta.
-        cliente.setEstado(EstadoCliente.INACTIVO);
-
-        // Un alta nunca debe poder pisar una fila existente vía un id enviado en el body.
-        cliente.setId(null);
-
-        if (cliente.getEmail() != null && !cliente.getEmail().isBlank()
-                && clienteRepository.findByEmail(cliente.getEmail()).isPresent()) {
-            throw new IllegalArgumentException("Ya existe un cliente registrado con el email: " + cliente.getEmail());
+    public Cliente crear(ClienteRequest request) {
+        if (request.getEmail() != null && !request.getEmail().isBlank()
+                && clienteRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("Ya existe un cliente registrado con el email: " + request.getEmail());
         }
 
-        if (cliente.getContrasena() != null && !cliente.getContrasena().isBlank()) {
-            cliente.setContrasena(passwordEncoder.encode(cliente.getContrasena()));
+        Cliente cliente = new Cliente();
+        cliente.setNombre(request.getNombre());
+        cliente.setApellido(request.getApellido());
+        cliente.setTelefono(request.getTelefono());
+        cliente.setEmail(request.getEmail());
+
+        // Por regla de negocio, un cliente recién registrado siempre inicia INACTIVO hasta
+        // que abone un pago. A diferencia de la versión vieja (que recibía la entidad
+        // Cliente completa y tenía que anular "estado" e "id" a mano), ClienteRequest ni
+        // siquiera tiene esos campos: no hay nada que pisar.
+        cliente.setEstado(EstadoCliente.INACTIVO);
+
+        if (request.getContrasena() != null && !request.getContrasena().isBlank()) {
+            cliente.setContrasena(passwordEncoder.encode(request.getContrasena()));
         } else {
             // Sin credenciales todavía: el cliente las va a completar él mismo en
             // /registro, probando que es quien dice ser con este código de un solo uso.
@@ -82,22 +85,29 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     @Transactional
-    public Cliente actualizar(Integer id, Cliente clienteActualizado) {
+    public ClienteResponse actualizar(Integer id, ClienteRequest request) {
         Cliente clienteExistente = obtenerPorId(id);
 
-        clienteExistente.setNombre(clienteActualizado.getNombre());
-        clienteExistente.setApellido(clienteActualizado.getApellido());
-        clienteExistente.setTelefono(clienteActualizado.getTelefono());
+        // Solo datos de contacto. El email NO se edita acá a propósito: es la identidad
+        // de login del socio en el portal, y cambiárselo desde el mostrador le sacaría el
+        // acceso a su cuenta sin que se entere. La contraseña tampoco: la define el propio
+        // socio en /registro. Ambos campos existen en ClienteRequest porque el alta sí los
+        // usa, y acá se ignoran deliberadamente (ver el javadoc de ClienteRequest).
+        clienteExistente.setNombre(request.getNombre());
+        clienteExistente.setApellido(request.getApellido());
+        clienteExistente.setTelefono(request.getTelefono());
 
-        return clienteRepository.save(clienteExistente);
+        Cliente guardado = clienteRepository.save(clienteExistente);
+        return ClienteResponse.desde(guardado, fechaVencimientoVigente(guardado.getId()));
     }
 
     @Override
     @Transactional
-    public Cliente cambiarEstado(Integer id, EstadoCliente nuevoEstado) {
+    public ClienteResponse cambiarEstado(Integer id, EstadoCliente nuevoEstado) {
         Cliente cliente = obtenerPorId(id);
         cliente.setEstado(nuevoEstado);
-        return clienteRepository.save(cliente);
+        Cliente guardado = clienteRepository.save(cliente);
+        return ClienteResponse.desde(guardado, fechaVencimientoVigente(guardado.getId()));
     }
 
     @Override
@@ -165,27 +175,28 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ClienteResponse> obtenerTodosConVencimiento() {
-        List<Cliente> clientes = clienteRepository.findAll();
+    public PaginaResponse<ClienteResponse> obtenerTodosConVencimiento(Pageable pageable) {
+        Page<Cliente> paginaClientes = clienteRepository.findAll(pageable);
 
-        // Una sola consulta trae el último pago de CADA cliente; de acá arriba resolvemos
-        // todas las fechas de vencimiento con un Map en memoria en vez de consultar pago por
-        // pago dentro del for de abajo (eso sería un N+1 contra la tabla de pagos).
+        // Una sola consulta trae el último pago de CADA cliente (no solo los de esta
+        // página: PagoRepository no tiene un método acotado a un subconjunto de ids), y de
+        // acá arriba resolvemos todas las fechas de vencimiento con un Map en memoria en
+        // vez de consultar pago por pago dentro del map de abajo (eso sería un N+1 contra
+        // la tabla de pagos). Sigue siendo UNA sola consulta a pagos sin importar el
+        // tamaño de página pedido.
         // La consulta devuelve TODOS los pagos empatados en la fecha máxima de cada cliente,
         // así que un socio con dos pagos que vencen el mismo día (por ejemplo dos pases
         // diarios comprados la misma fecha) aparece dos veces. Sin función de merge,
-        // Collectors.toMap tira IllegalStateException por clave duplicada y el listado
-        // entero devuelve 500; como la fecha empatada es la misma, quedarse con cualquiera
-        // de las dos es correcto.
+        // Collectors.toMap tira IllegalStateException por clave duplicada; como la fecha
+        // empatada es la misma, quedarse con cualquiera de las dos es correcto.
         Map<Integer, LocalDate> fechasVencimientoPorCliente = pagoRepository.findUltimoPagoPorCadaCliente().stream()
                 .collect(Collectors.toMap(
                         pago -> pago.getCliente().getId(),
                         Pago::getFechaVencimiento,
                         (unaFecha, otraIgual) -> unaFecha));
 
-        return clientes.stream()
-                .map(cliente -> ClienteResponse.desde(cliente, fechasVencimientoPorCliente.get(cliente.getId())))
-                .collect(Collectors.toList());
+        return PaginaResponse.desde(paginaClientes,
+                cliente -> ClienteResponse.desde(cliente, fechasVencimientoPorCliente.get(cliente.getId())));
     }
 
     @Override
@@ -197,9 +208,10 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     @Transactional(readOnly = true)
-    public ClienteResponse buscarPorNombreConVencimiento(String nombre) {
-        Cliente cliente = buscarPorNombre(nombre);
-        return ClienteResponse.desde(cliente, fechaVencimientoVigente(cliente.getId()));
+    public List<ClienteResponse> buscarPorNombreConVencimiento(String nombre) {
+        return clienteRepository.findByNombreContainingIgnoreCase(nombre).stream()
+                .map(cliente -> ClienteResponse.desde(cliente, fechaVencimientoVigente(cliente.getId())))
+                .toList();
     }
 
     // Fecha de vencimiento vigente de UN solo cliente: acá no hace falta traer la tabla

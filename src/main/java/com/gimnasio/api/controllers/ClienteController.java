@@ -5,8 +5,10 @@ import com.gimnasio.api.dto.ClienteLoginRequest;
 import com.gimnasio.api.dto.ClienteLoginResponse;
 import com.gimnasio.api.dto.ClienteRefreshResponse;
 import com.gimnasio.api.dto.ClienteRegistroRequest;
+import com.gimnasio.api.dto.ClienteRequest;
 import com.gimnasio.api.dto.ClienteResponse;
 import com.gimnasio.api.dto.MensajeResponse;
+import com.gimnasio.api.dto.PaginaResponse;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.security.AuthPrincipal;
@@ -18,6 +20,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -52,8 +56,9 @@ public class ClienteController {
     private String cookieSameSite;
 
     @GetMapping
-    public ResponseEntity<List<ClienteResponse>> obtenerTodos() {
-        return ResponseEntity.ok(clienteService.obtenerTodosConVencimiento());
+    public ResponseEntity<PaginaResponse<ClienteResponse>> obtenerTodos(
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(clienteService.obtenerTodosConVencimiento(pageable));
     }
 
     @GetMapping("/{id}")
@@ -67,23 +72,23 @@ public class ClienteController {
     }
 
     @GetMapping("/buscar")
-    public ResponseEntity<ClienteResponse> buscarPorNombre(@RequestParam String nombre) {
+    public ResponseEntity<List<ClienteResponse>> buscarPorNombre(@RequestParam String nombre) {
         return ResponseEntity.ok(clienteService.buscarPorNombreConVencimiento(nombre));
     }
 
     @PostMapping
-    public ResponseEntity<ClienteAltaResponse> crear(@RequestBody Cliente cliente) {
-        Cliente nuevoCliente = clienteService.crear(cliente);
+    public ResponseEntity<ClienteAltaResponse> crear(@Valid @RequestBody ClienteRequest request) {
+        Cliente nuevoCliente = clienteService.crear(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ClienteAltaResponse.desde(nuevoCliente));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Cliente> actualizar(@PathVariable Integer id, @RequestBody Cliente cliente) {
-        return ResponseEntity.ok(clienteService.actualizar(id, cliente));
+    public ResponseEntity<ClienteResponse> actualizar(@PathVariable Integer id, @Valid @RequestBody ClienteRequest request) {
+        return ResponseEntity.ok(clienteService.actualizar(id, request));
     }
 
     @PatchMapping("/{id}/estado")
-    public ResponseEntity<Cliente> cambiarEstado(
+    public ResponseEntity<ClienteResponse> cambiarEstado(
             @PathVariable Integer id,
             @RequestParam EstadoCliente nuevoEstado) {
         return ResponseEntity.ok(clienteService.cambiarEstado(id, nuevoEstado));

@@ -11,6 +11,8 @@ import com.gimnasio.api.repositories.PlanRepository;
 import com.gimnasio.api.repositories.UsuarioRepository;
 import com.gimnasio.api.services.PagoService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,8 +33,8 @@ public class PagoServiceImpl implements PagoService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Pago> obtenerTodos() {
-        return pagoRepository.findAll();
+    public Page<Pago> obtenerTodos(Pageable pageable) {
+        return pagoRepository.findAll(pageable);
     }
 
     @Override

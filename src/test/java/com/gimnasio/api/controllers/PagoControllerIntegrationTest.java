@@ -75,6 +75,22 @@ class PagoControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("La respuesta de un pago no expone quién lo cobró, ni siquiera al propio dueño")
+    void obtenerPagoPorId_conTokenPropio_noDeberiaExponerRegistradoPor() throws Exception {
+        Cliente cliente = crearClienteConPago("Yamila", "Ponce", "555-P15", "yamila.pago@test.com", "claveYamila123");
+        Pago pago = pagoRepository.findAll().stream()
+                .filter(p -> p.getCliente().getId().equals(cliente.getId()))
+                .findFirst().orElseThrow();
+        String token = loguearComoCliente("yamila.pago@test.com", "claveYamila123");
+
+        mockMvc.perform(get("/api/v1/pagos/" + pago.getId()).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.registradoPor").doesNotExist())
+                .andExpect(jsonPath("$.cliente.id").value(cliente.getId()))
+                .andExpect(jsonPath("$.plan").exists());
+    }
+
+    @Test
     @DisplayName("Un token de Cliente no puede ver los pagos de otro cliente")
     void obtenerPagosPorCliente_conTokenDeOtroCliente_deberiaDevolver403() throws Exception {
         Cliente otroCliente = crearClienteConPago("Marta", "Ruiz", "555-P2", null, null);
@@ -103,6 +119,21 @@ class PagoControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/pagos").header("Authorization", "Bearer " + tokenAdmin))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("El listado de pagos devuelve la forma paginada, no un array suelto")
+    void listarPagos_conTokenAdmin_deberiaDevolverFormaPaginada() throws Exception {
+        crearClienteConPago("Renata", "Luna", "555-P14", null, null);
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/pagos").header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido").isArray())
+                .andExpect(jsonPath("$.pagina").value(0))
+                .andExpect(jsonPath("$.tamanio").exists())
+                .andExpect(jsonPath("$.totalElementos").exists())
+                .andExpect(jsonPath("$.totalPaginas").exists());
     }
 
     @Test

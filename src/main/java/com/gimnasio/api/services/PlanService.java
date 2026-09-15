@@ -23,12 +23,13 @@ public interface PlanService {
     Plan obtenerPorId(Integer id);
 
     /**
-     * Busca un plan por su nombre exacto.
-     * @param nombre Nombre del plan (ej. "Pase Mensual").
-     * @return El plan encontrado.
-     * @throws RuntimeException si no existe.
+     * Busca planes cuyo nombre contenga el texto dado, sin distinguir mayúsculas.
+     * @param nombre Fragmento del nombre a buscar.
+     * @return Los planes que coincidan; lista vacía si no hay ninguno. No lanza
+     *         excepción: "no encontré nada" es un resultado válido de una búsqueda,
+     *         no un error.
      */
-    Plan buscarPorNombre(String nombre);
+    List<Plan> buscarPorNombre(String nombre);
 
     /**
      * Registra un nuevo plan en el catálogo.

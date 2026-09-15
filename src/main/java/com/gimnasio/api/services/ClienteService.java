@@ -1,8 +1,11 @@
 package com.gimnasio.api.services;
 
+import com.gimnasio.api.dto.ClienteRequest;
 import com.gimnasio.api.dto.ClienteResponse;
+import com.gimnasio.api.dto.PaginaResponse;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.enums.EstadoCliente;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 
@@ -24,37 +27,32 @@ public interface ClienteService {
      */
     Cliente obtenerPorId(Integer id);
 
-    /**
-     * Busca un cliente por su nombre.
-     * @param nombre Nombre del cliente a buscar.
-     * @return El cliente encontrado.
-     * @throws RuntimeException si no se encuentra un cliente con ese nombre.
-     */
-    Cliente buscarPorNombre(String nombre);
 
     /**
-     * Registra un nuevo cliente en el sistema.
-     * Su estado inicial será INACTIVO hasta que registre su primer pago.
-     * @param cliente Datos del nuevo cliente.
+     * Registra un nuevo cliente en el sistema a partir de los datos que puede
+     * enviar el llamador (nombre, apellido, teléfono, email, contraseña opcional).
+     * Su estado inicial siempre es INACTIVO hasta que registre su primer pago; el
+     * DTO de entrada ni siquiera tiene un campo "estado" ni "id" que se pueda pisar.
+     * @param request Datos del nuevo cliente.
      * @return El cliente registrado y persistido con su ID generado.
      */
-    Cliente crear(Cliente cliente);
+    Cliente crear(ClienteRequest request);
 
     /**
      * Actualiza los datos de contacto de un cliente existente.
      * @param id Identificador del cliente a actualizar.
-     * @param clienteActualizado Nuevos datos (nombre, apellido, teléfono).
-     * @return El cliente actualizado.
+     * @param request Nuevos datos (nombre, apellido, teléfono).
+     * @return El cliente actualizado, como {@link ClienteResponse}.
      */
-    Cliente actualizar(Integer id, Cliente clienteActualizado);
+    ClienteResponse actualizar(Integer id, ClienteRequest request);
 
     /**
      * Cambia manualmente el estado de un cliente (ACTIVO, MOROSO, INACTIVO).
      * @param id Identificador del cliente.
      * @param nuevoEstado Nuevo estado a asignar.
-     * @return El cliente con el estado actualizado.
+     * @return El cliente con el estado actualizado, como {@link ClienteResponse}.
      */
-    Cliente cambiarEstado(Integer id, EstadoCliente nuevoEstado);
+    ClienteResponse cambiarEstado(Integer id, EstadoCliente nuevoEstado);
 
     /**
      * Da de baja lógica (Soft Delete) a un cliente, pasando su estado a INACTIVO.
@@ -85,15 +83,16 @@ public interface ClienteService {
     Cliente buscarPorEmail(String email);
 
     /**
-     * Lista todos los clientes con su fecha de vencimiento vigente (la del último pago
-     * registrado de cada uno, o null si nunca pagó), pero sin ningún dato monetario.
-     * Existe para que GERENCIA pueda saber quién está al día desde el listado de socios
-     * sin necesitar leer la tabla de pagos (a la que ya no tiene acceso). Resuelve las
-     * fechas de todos los clientes en una sola consulta para evitar un N+1.
-     * @return la lista de clientes como {@link ClienteResponse}, en el mismo orden que
-     *         devuelve el repositorio.
+     * Lista, paginado, todos los clientes con su fecha de vencimiento vigente (la del
+     * último pago registrado de cada uno, o null si nunca pagó), pero sin ningún dato
+     * monetario. Existe para que GERENCIA pueda saber quién está al día desde el listado
+     * de socios sin necesitar leer la tabla de pagos (a la que ya no tiene acceso).
+     * Resuelve las fechas de vencimiento en una sola consulta (no una por socio) para
+     * evitar un N+1, sin importar el tamaño de la página pedida.
+     * @param pageable número/tamaño de página pedidos por el llamador.
+     * @return la página de clientes como {@link ClienteResponse}.
      */
-    List<ClienteResponse> obtenerTodosConVencimiento();
+    PaginaResponse<ClienteResponse> obtenerTodosConVencimiento(Pageable pageable);
 
     /**
      * Busca un cliente por ID y arma su respuesta pública, incluyendo la fecha de
@@ -105,11 +104,11 @@ public interface ClienteService {
     ClienteResponse obtenerRespuestaPorId(Integer id);
 
     /**
-     * Busca un cliente por nombre y arma su respuesta pública, incluyendo la fecha de
-     * vencimiento de su último pago (o null si nunca pagó). Nunca incluye montos.
+     * Busca clientes por nombre exacto y arma su respuesta pública, incluyendo la fecha
+     * de vencimiento de su último pago (o null si nunca pagó). Nunca incluye montos.
+     * No lanza excepción si no hay coincidencias: devuelve una lista vacía.
      * @param nombre Nombre del cliente a buscar.
-     * @return el cliente encontrado como {@link ClienteResponse}.
-     * @throws RuntimeException si no se encuentra un cliente con ese nombre.
+     * @return la lista de coincidencias (vacía si no hay ninguna) como {@link ClienteResponse}.
      */
-    ClienteResponse buscarPorNombreConVencimiento(String nombre);
+    List<ClienteResponse> buscarPorNombreConVencimiento(String nombre);
 }

@@ -1,6 +1,8 @@
 package com.gimnasio.api.services;
 
 import com.gimnasio.api.models.Pago;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -11,9 +13,11 @@ import java.util.List;
 public interface PagoService {
 
     /**
-     * Obtiene el listado histórico de todos los pagos registrados.
+     * Obtiene el listado histórico de todos los pagos registrados, paginado: es el
+     * listado completo sin acotar por cliente, así que sin paginar podía devolver toda
+     * la tabla en una sola respuesta.
      */
-    List<Pago> obtenerTodos();
+    Page<Pago> obtenerTodos(Pageable pageable);
 
     /**
      * Obtiene un pago por su ID único.
