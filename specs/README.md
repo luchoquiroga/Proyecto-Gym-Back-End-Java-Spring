@@ -22,6 +22,9 @@ releer explícitamente toda la matriz.
   `SecurityConfig` o a un chequeo de ownership en un controller. Si el código
   y este archivo no coinciden, el archivo está desactualizado y hay que
   corregirlo — no es al revés.
+- **`ARQUITECTURA-APPS.md`** — qué app consume qué parte del API (escritorio,
+  web, mobile) y qué audiencia tiene cada una. Es el complemento de producto
+  de `AUTHZ-MATRIX.md`: la matriz dice quién *puede*, este dice quién *llama*.
 - **`TEMPLATE.md`** — la plantilla a copiar para especificar un feature nuevo
   antes de implementarlo.
 - **`CHECKLIST-NUEVO-ENDPOINT.md`** — el checklist paso a paso para agregar o
