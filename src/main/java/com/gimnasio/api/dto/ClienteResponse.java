@@ -1,6 +1,7 @@
 package com.gimnasio.api.dto;
 
 import com.gimnasio.api.models.Cliente;
+import com.gimnasio.api.models.Pago;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -34,14 +35,35 @@ public class ClienteResponse {
     private LocalDate fechaVencimiento;
 
     /**
-     * Variante sin fecha de vencimiento, para los llamadores que no la necesitan
+     * Plan que el socio tiene vigente, es decir el de su último pago. `Cliente` no
+     * referencia a `Plan`: el plan actual es un dato derivado de la tabla de pagos, igual
+     * que la fecha de vencimiento, y por el mismo motivo no se persiste. Solo nombre e id,
+     * nunca el precio: esto lo lee el propio socio en su portal y GERENCIA en el
+     * mostrador, y ninguno de los dos tiene por qué recibir un monto por esta vía.
+     * Null si el socio todavía no registró ningún pago.
+     */
+    private PlanVigente planVigente;
+
+    public record PlanVigente(Integer id, String nombre) {
+    }
+
+    /**
+     * Variante sin datos derivados de pagos, para los llamadores que no los necesitan
      * (respuestas de login/refresh de cliente, que no pasan por la lógica de pagos).
      */
     public static ClienteResponse desde(Cliente cliente) {
-        return desde(cliente, null);
+        return desde(cliente, (Pago) null);
     }
 
-    public static ClienteResponse desde(Cliente cliente, LocalDate fechaVencimiento) {
+    /**
+     * Arma la respuesta a partir del socio y de su último pago, del que salen tanto la
+     * fecha de vencimiento como el plan vigente. Recibe el pago entero y no solo la fecha
+     * justamente para eso: son dos datos que vienen de la misma fila, y pedirlos por
+     * separado era una consulta de más.
+     *
+     * @param ultimoPago el último pago del socio, o null si nunca pagó.
+     */
+    public static ClienteResponse desde(Cliente cliente, Pago ultimoPago) {
         return new ClienteResponse(
                 cliente.getId(),
                 cliente.getNombre(),
@@ -49,7 +71,9 @@ public class ClienteResponse {
                 cliente.getTelefono(),
                 cliente.getEmail(),
                 cliente.getEstado(),
-                fechaVencimiento
+                ultimoPago == null ? null : ultimoPago.getFechaVencimiento(),
+                ultimoPago == null ? null
+                        : new PlanVigente(ultimoPago.getPlan().getId(), ultimoPago.getPlan().getNombre())
         );
     }
 }

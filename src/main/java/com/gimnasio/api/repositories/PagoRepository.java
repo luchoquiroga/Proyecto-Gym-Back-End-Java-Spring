@@ -1,6 +1,8 @@
 package com.gimnasio.api.repositories;
 
 import com.gimnasio.api.models.Pago;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -33,4 +35,14 @@ public interface PagoRepository extends JpaRepository<Pago, Integer> {
     Double sumarMontoAbonadoEntre(@Param("inicio") LocalDate inicio, @Param("fin") LocalDate fin);
 
     long countByFechaPagoBetween(LocalDate inicio, LocalDate fin);
+
+    // Listado acotado por fecha de cobro, para el desglose de ganancias de un mes: el total
+    // agregado lo da /dashboard, y estas consultas dan las filas que lo componen. Son tres
+    // métodos y no una consulta con parámetros nulos porque cada combinación de filtros es
+    // una consulta distinta y explícita; el service elige cuál según qué mandó el llamador.
+    Page<Pago> findByFechaPagoBetween(LocalDate desde, LocalDate hasta, Pageable pageable);
+
+    Page<Pago> findByFechaPagoGreaterThanEqual(LocalDate desde, Pageable pageable);
+
+    Page<Pago> findByFechaPagoLessThanEqual(LocalDate hasta, Pageable pageable);
 }

@@ -73,6 +73,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/clientes/refresh").permitAll()
                         .requestMatchers("/api/v1/clientes/logout").permitAll()
                         // Solo ADMIN: gestión de cuentas de usuario, catálogo de planes (altas/bajas) y dashboard
+                        .requestMatchers(HttpMethod.GET, "/api/v1/usuarios").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/usuarios").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/usuarios/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/usuarios/*/activo").hasRole("ADMIN")

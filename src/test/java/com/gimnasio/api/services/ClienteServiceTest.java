@@ -6,6 +6,7 @@ import com.gimnasio.api.dto.PaginaResponse;
 import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.Pago;
+import com.gimnasio.api.models.Plan;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.repositories.ClienteRepository;
 import com.gimnasio.api.repositories.PagoRepository;
@@ -194,9 +195,21 @@ class ClienteServiceTest {
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
 
-        ClienteResponse resultado = clienteService.cambiarEstado(1, EstadoCliente.ACTIVO);
+        ClienteResponse resultado = clienteService.cambiarEstado(1, EstadoCliente.MOROSO);
 
-        assertEquals(EstadoCliente.ACTIVO, resultado.getEstado());
+        assertEquals(EstadoCliente.MOROSO, resultado.getEstado());
+    }
+
+    @Test
+    @DisplayName("cambiarEstado no debe poder activar a un socio a mano: eso lo hace un pago")
+    void cambiarEstado_conActivo_deberiaLanzarExcepcion() {
+        // Sin esta regla, este endpoint esquiva las dos validaciones de dinero de la Fase 1
+        // (monto menor al plan rechazado, y activación solo si el vencimiento es futuro).
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                clienteService.cambiarEstado(1, EstadoCliente.ACTIVO));
+
+        assertTrue(ex.getMessage().contains("no se activa a mano"));
+        verify(clienteRepository, never()).save(any(Cliente.class));
     }
 
     @Test
@@ -300,12 +313,17 @@ class ClienteServiceTest {
         LocalDate fechaUltimoPago = LocalDate.of(2026, 3, 20);
         Pago ultimoPago = new Pago();
         ultimoPago.setFechaVencimiento(fechaUltimoPago);
+        // Con plan, como en la base: pagos.plan_id es NOT NULL. De paso sirve para
+        // comprobar que el plan vigente del socio sale del último pago.
+        ultimoPago.setPlan(new Plan(7, "Pase Mensual", 32500.0, 30));
         when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(1)).thenReturn(Optional.of(ultimoPago));
 
         ClienteResponse resultado = clienteService.obtenerRespuestaPorId(1);
 
         assertEquals(fechaUltimoPago, resultado.getFechaVencimiento());
         assertNotEquals(fechaPagoAnterior, resultado.getFechaVencimiento());
+        assertEquals("Pase Mensual", resultado.getPlanVigente().nombre());
+        assertEquals(7, resultado.getPlanVigente().id());
     }
 
     @Test
@@ -333,10 +351,12 @@ class ClienteServiceTest {
         Pago pagoClientePrueba = new Pago();
         pagoClientePrueba.setCliente(clientePrueba);
         pagoClientePrueba.setFechaVencimiento(fechaClientePrueba);
+        pagoClientePrueba.setPlan(new Plan(7, "Pase Mensual", 32500.0, 30));
 
         Pago pagoOtroCliente = new Pago();
         pagoOtroCliente.setCliente(otroCliente);
         pagoOtroCliente.setFechaVencimiento(fechaOtroCliente);
+        pagoOtroCliente.setPlan(new Plan(8, "Pase Diario", 1000.0, 1));
 
         when(pagoRepository.findUltimoPagoPorCadaCliente())
                 .thenReturn(List.of(pagoClientePrueba, pagoOtroCliente));
@@ -366,10 +386,12 @@ class ClienteServiceTest {
         Pago primerPago = new Pago();
         primerPago.setCliente(clientePrueba);
         primerPago.setFechaVencimiento(mismaFecha);
+        primerPago.setPlan(new Plan(8, "Pase Diario", 1000.0, 1));
 
         Pago segundoPago = new Pago();
         segundoPago.setCliente(clientePrueba);
         segundoPago.setFechaVencimiento(mismaFecha);
+        segundoPago.setPlan(new Plan(8, "Pase Diario", 1000.0, 1));
 
         when(pagoRepository.findUltimoPagoPorCadaCliente()).thenReturn(List.of(primerPago, segundoPago));
 

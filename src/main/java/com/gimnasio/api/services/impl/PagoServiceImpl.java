@@ -34,7 +34,20 @@ public class PagoServiceImpl implements PagoService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<Pago> obtenerTodos(Pageable pageable) {
+    public Page<Pago> obtenerTodos(LocalDate desde, LocalDate hasta, Pageable pageable) {
+        if (desde != null && hasta != null && desde.isAfter(hasta)) {
+            throw new IllegalArgumentException("La fecha 'desde' no puede ser posterior a 'hasta'.");
+        }
+
+        if (desde != null && hasta != null) {
+            return pagoRepository.findByFechaPagoBetween(desde, hasta, pageable);
+        }
+        if (desde != null) {
+            return pagoRepository.findByFechaPagoGreaterThanEqual(desde, pageable);
+        }
+        if (hasta != null) {
+            return pagoRepository.findByFechaPagoLessThanEqual(hasta, pageable);
+        }
         return pagoRepository.findAll(pageable);
     }
 

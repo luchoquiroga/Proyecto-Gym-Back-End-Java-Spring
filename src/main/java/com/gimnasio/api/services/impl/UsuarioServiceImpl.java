@@ -7,6 +7,8 @@ import com.gimnasio.api.repositories.UsuarioRepository;
 import com.gimnasio.api.security.RefreshTokenService;
 import com.gimnasio.api.services.UsuarioService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +50,12 @@ public class UsuarioServiceImpl implements UsuarioService {
         usuario.setId(null);
         usuario.setContrasena(passwordEncoder.encode(usuario.getContrasena()));
         return usuarioRepository.save(usuario);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<Usuario> obtenerTodos(Pageable pageable) {
+        return usuarioRepository.findAll(pageable);
     }
 
     @Override

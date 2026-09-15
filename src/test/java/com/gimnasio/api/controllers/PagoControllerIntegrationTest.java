@@ -254,6 +254,74 @@ class PagoControllerIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("El listado de pagos acepta un rango de fechas de cobro")
+    void listarPagos_conRangoDeFechas_deberiaFiltrar() throws Exception {
+        crearClienteConPago("Ivo", "Ramos", "555-P20", null, null);
+        String tokenAdmin = loguearComoAdmin();
+        String hoy = LocalDate.now().toString();
+
+        // Una ventana que no incluye hoy no puede traer el pago recién creado. Se usa una
+        // fecha lejana en el futuro para que el resultado no dependa de qué haya en la base.
+        mockMvc.perform(get("/api/v1/pagos")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .param("desde", "2099-01-01")
+                        .param("hasta", "2099-12-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElementos").value(0));
+
+        mockMvc.perform(get("/api/v1/pagos")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .param("desde", hoy)
+                        .param("hasta", hoy))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido[0].fechaPago").value(hoy));
+    }
+
+    @Test
+    @DisplayName("Un rango de fechas al revés devuelve 400, no una página vacía")
+    void listarPagos_conDesdePosteriorAHasta_deberiaDevolver400() throws Exception {
+        String tokenAdmin = loguearComoAdmin();
+
+        // Una página vacía haría creer que no hubo cobros en ese período, cuando en realidad
+        // el filtro está mal escrito.
+        mockMvc.perform(get("/api/v1/pagos")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .param("desde", "2026-12-31")
+                        .param("hasta", "2026-01-01"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("El socio expone el plan de su último pago, sin el precio")
+    void obtenerCliente_conPago_deberiaTraerElPlanVigente() throws Exception {
+        Cliente cliente = crearClienteConPago("Delia", "Cruz", "555-P21", null, null);
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.planVigente.id").isNumber())
+                .andExpect(jsonPath("$.planVigente.nombre").isNotEmpty())
+                // El portal del socio lee esto: no tiene por qué recibir el precio del plan.
+                .andExpect(jsonPath("$.planVigente.precio").doesNotExist())
+                .andExpect(jsonPath("$.fechaVencimiento").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("Un socio sin pagos no tiene plan vigente ni vencimiento")
+    void obtenerCliente_sinPagos_deberiaTraerPlanVigenteNulo() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Elsa", "Mota", "555-P22", null, null, EstadoCliente.INACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.planVigente").doesNotExist())
+                .andExpect(jsonPath("$.fechaVencimiento").doesNotExist());
+    }
+
     private Cliente crearClienteConPago(String nombre, String apellido, String telefono,
                                          String email, String contrasena) throws Exception {
         // El teléfono ya es único por test y cabe en el VARCHAR(10) de codigo_activacion,

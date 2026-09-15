@@ -13,11 +13,20 @@ import java.util.List;
 public interface PagoService {
 
     /**
-     * Obtiene el listado histórico de todos los pagos registrados, paginado: es el
-     * listado completo sin acotar por cliente, así que sin paginar podía devolver toda
-     * la tabla en una sola respuesta.
+     * Obtiene el listado histórico de pagos registrados, paginado: es el listado completo
+     * sin acotar por cliente, así que sin paginar podía devolver toda la tabla en una sola
+     * respuesta.
+     *
+     * <p>Los dos límites son opcionales e independientes y se aplican sobre la fecha de
+     * cobro: sin ninguno devuelve todo, como antes. Existen para poder desglosar las
+     * ganancias de un mes —ver qué pagos componen el total que informa el dashboard— sin
+     * traerse el histórico entero para filtrarlo en el navegador.
+     *
+     * @param desde primera fecha de cobro incluida, o null para no acotar por abajo.
+     * @param hasta última fecha de cobro incluida, o null para no acotar por arriba.
+     * @throws IllegalArgumentException si `desde` es posterior a `hasta`.
      */
-    Page<Pago> obtenerTodos(Pageable pageable);
+    Page<Pago> obtenerTodos(LocalDate desde, LocalDate hasta, Pageable pageable);
 
     /**
      * Obtiene un pago por su ID único.

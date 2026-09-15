@@ -5,6 +5,7 @@ import com.gimnasio.api.dto.CambioContrasenaRequest;
 import com.gimnasio.api.dto.LoginRequest;
 import com.gimnasio.api.dto.LoginResponse;
 import com.gimnasio.api.dto.MensajeResponse;
+import com.gimnasio.api.dto.PaginaResponse;
 import com.gimnasio.api.dto.RefreshResponse;
 import com.gimnasio.api.dto.ResetContrasenaRequest;
 import com.gimnasio.api.dto.UsuarioRequest;
@@ -19,6 +20,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -108,6 +111,16 @@ public class UsuarioController {
         agregarCookieRefresh(response, "", 0);
 
         return ResponseEntity.ok(new MensajeResponse("Sesión cerrada correctamente"));
+    }
+
+    /**
+     * Listado de cuentas de staff (solo ADMIN, ver SecurityConfig). Incluye las dadas de
+     * baja: `activo` las distingue, y son las que hay que ver para poder reactivarlas.
+     */
+    @GetMapping
+    public ResponseEntity<PaginaResponse<UsuarioResponse>> obtenerTodos(
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(PaginaResponse.desde(usuarioService.obtenerTodos(pageable), UsuarioResponse::desde));
     }
 
     @PostMapping
