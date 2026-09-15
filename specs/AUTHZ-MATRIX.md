@@ -2,7 +2,7 @@
 
 Fuente de verdad de quién puede llamar a cada endpoint. Refleja el estado de
 `SecurityConfig.java` + los chequeos de ownership hechos a mano en los
-controllers, al 2026-09-14. Si tocás cualquiera de los dos, actualizá esta
+controllers, al 2026-09-15. Si tocás cualquiera de los dos, actualizá esta
 tabla en el mismo commit.
 
 Roles/principales que existen hoy:
@@ -47,7 +47,7 @@ Roles/principales que existen hoy:
 | GET | `/buscar` | ADMIN, GERENCIA | |
 | GET | `/cliente/{clienteId}` | ADMIN, GERENCIA, o el propio CLIENTE dueño | chequeo en `PagoController.obtenerPagosPorCliente` |
 | GET | `/{id}` | ADMIN, GERENCIA, o el propio CLIENTE dueño del pago | agregado 2026-09-14, antes cualquier autenticado; chequeo en `PagoController.obtenerPorId` vía `pago.getCliente().getId()` |
-| POST | `` (registrar pago) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía registrarse pagos a sí mismo o a otros) |
+| POST | `` (registrar pago) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía registrarse pagos a sí mismo o a otros). Desde 2026-09-15 guarda `registrado_por` tomado del token (nunca del body) y rechaza montos menores al precio del plan |
 
 ## `/api/v1/planes`
 

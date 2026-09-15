@@ -271,7 +271,7 @@ costo. No hay compatibilidad hacia atrás que cuidar, no hay versionado de API
 que inventar, no hay migración progresiva. Se cambia el contrato de una y las
 UIs se adaptan después (§10).
 
-**Fase 1 — Integridad del dinero** (A1, A3)
+**Fase 1 — Integridad del dinero** (A1, A3) — ✅ implementada el 2026-09-15
 Migración `V3`: `pagos.registrado_por` → `usuarios(id)`, nullable (los pagos
 históricos no tienen autor y no se puede inventar). `registrarPago` toma el
 autor del `AuthPrincipal`, rechaza montos menores al precio del plan, y activa

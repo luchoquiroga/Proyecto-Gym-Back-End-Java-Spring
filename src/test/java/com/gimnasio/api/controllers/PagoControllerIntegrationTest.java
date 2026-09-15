@@ -3,13 +3,16 @@ package com.gimnasio.api.controllers;
 import com.gimnasio.api.dto.ClienteLoginRequest;
 import com.gimnasio.api.dto.ClienteRegistroRequest;
 import com.gimnasio.api.dto.LoginRequest;
+import com.gimnasio.api.dto.PagoRequest;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.Pago;
 import com.gimnasio.api.models.Plan;
+import com.gimnasio.api.models.Usuario;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.repositories.ClienteRepository;
 import com.gimnasio.api.repositories.PagoRepository;
 import com.gimnasio.api.repositories.PlanRepository;
+import com.gimnasio.api.repositories.UsuarioRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +28,9 @@ import java.time.LocalDate;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -51,6 +57,9 @@ class PagoControllerIntegrationTest {
 
     @Autowired
     private PlanRepository planRepository;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
 
     @Test
     @DisplayName("Un token de Cliente puede ver sus propios pagos")
@@ -91,6 +100,64 @@ class PagoControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/pagos").header("Authorization", "Bearer " + tokenAdmin))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Registrar un pago guarda qué usuario de staff lo cobró, tomado del token")
+    void registrarPago_deberiaGuardarElAutorDelCobro() throws Exception {
+        Cliente cliente = crearClienteConPago("Nadia", "Sosa", "555-P6", null, null);
+        Plan plan = planRepository.findAll().getFirst();
+        String tokenAdmin = loguearComoAdmin();
+
+        MvcResult resultado = mockMvc.perform(post("/api/v1/pagos")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new PagoRequest(cliente.getId(), plan.getId(), plan.getPrecio(), LocalDate.now()))))
+                .andExpect(status().isCreated())
+                // El autor es dato de auditoría interno: no viaja en la respuesta, que el
+                // propio Cliente dueño del pago puede leer por GET /pagos/{id}.
+                .andExpect(jsonPath("$.registradoPor").doesNotExist())
+                .andReturn();
+
+        Integer pagoId = objectMapper.readTree(resultado.getResponse().getContentAsString()).get("id").asInt();
+        Usuario admin = usuarioRepository.findByNombre("admin").orElseThrow();
+
+        Pago guardado = pagoRepository.findById(pagoId).orElseThrow();
+        assertEquals(admin.getId(), guardado.getRegistradoPor().getId());
+    }
+
+    @Test
+    @DisplayName("Un pago menor al precio del plan se rechaza con 400 y no se registra")
+    void registrarPago_conMontoInsuficiente_deberiaDevolver400() throws Exception {
+        Cliente cliente = crearClienteConPago("Ivan", "Rojas", "555-P7", null, null);
+        Plan plan = planRepository.findAll().getFirst();
+        String tokenAdmin = loguearComoAdmin();
+        long pagosAntes = pagoRepository.count();
+
+        mockMvc.perform(post("/api/v1/pagos")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new PagoRequest(cliente.getId(), plan.getId(), 1.0, LocalDate.now()))))
+                .andExpect(status().isBadRequest());
+
+        assertEquals(pagosAntes, pagoRepository.count());
+    }
+
+    @Test
+    @DisplayName("Un Cliente no puede registrar pagos: cobrar es operación de staff")
+    void registrarPago_conTokenDeCliente_deberiaDevolver403() throws Exception {
+        Cliente cliente = crearClienteConPago("Elsa", "Mora", "555-P8", "elsa.pago@test.com", "claveElsa123");
+        Plan plan = planRepository.findAll().getFirst();
+        String token = loguearComoCliente("elsa.pago@test.com", "claveElsa123");
+
+        mockMvc.perform(post("/api/v1/pagos")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new PagoRequest(cliente.getId(), plan.getId(), plan.getPrecio(), LocalDate.now()))))
+                .andExpect(status().isForbidden());
     }
 
     private Cliente crearClienteConPago(String nombre, String apellido, String telefono,

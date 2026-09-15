@@ -56,12 +56,17 @@ public class PagoController {
     }
 
     @PostMapping
-    public ResponseEntity<Pago> registrarPago(@Valid @RequestBody PagoRequest request) {
+    public ResponseEntity<Pago> registrarPago(@Valid @RequestBody PagoRequest request,
+                                              @AuthenticationPrincipal AuthPrincipal principal) {
+        // El autor del cobro sale del token y no de PagoRequest: si viniera del body,
+        // cualquiera podría registrar pagos a nombre de otro empleado y el rastro de
+        // auditoría no valdría nada.
         Pago nuevoPago = pagoService.registrarPago(
                 request.getClienteId(),
                 request.getPlanId(),
                 request.getMontoAbonado(),
-                request.getFechaPago()
+                request.getFechaPago(),
+                principal.id()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(nuevoPago);
     }
