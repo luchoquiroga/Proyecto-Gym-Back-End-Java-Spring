@@ -52,23 +52,23 @@ public class ClienteController {
     private String cookieSameSite;
 
     @GetMapping
-    public ResponseEntity<List<Cliente>> obtenerTodos() {
-        return ResponseEntity.ok(clienteService.obtenerTodos());
+    public ResponseEntity<List<ClienteResponse>> obtenerTodos() {
+        return ResponseEntity.ok(clienteService.obtenerTodosConVencimiento());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Cliente> obtenerPorId(@PathVariable Integer id,
-                                                 @AuthenticationPrincipal AuthPrincipal principal) {
+    public ResponseEntity<ClienteResponse> obtenerPorId(@PathVariable Integer id,
+                                                          @AuthenticationPrincipal AuthPrincipal principal) {
         boolean esStaff = "ADMIN".equals(principal.rol()) || "GERENCIA".equals(principal.rol());
         if (!esStaff && !id.equals(principal.id())) {
             throw new AccessDeniedException("No podés acceder a datos de otro cliente");
         }
-        return ResponseEntity.ok(clienteService.obtenerPorId(id));
+        return ResponseEntity.ok(clienteService.obtenerRespuestaPorId(id));
     }
 
     @GetMapping("/buscar")
-    public ResponseEntity<Cliente> buscarPorNombre(@RequestParam String nombre) {
-        return ResponseEntity.ok(clienteService.buscarPorNombre(nombre));
+    public ResponseEntity<ClienteResponse> buscarPorNombre(@RequestParam String nombre) {
+        return ResponseEntity.ok(clienteService.buscarPorNombreConVencimiento(nombre));
     }
 
     @PostMapping

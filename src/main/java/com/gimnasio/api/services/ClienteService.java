@@ -1,5 +1,6 @@
 package com.gimnasio.api.services;
 
+import com.gimnasio.api.dto.ClienteResponse;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.enums.EstadoCliente;
 
@@ -82,4 +83,33 @@ public interface ClienteService {
      * @throws RuntimeException si no existe.
      */
     Cliente buscarPorEmail(String email);
+
+    /**
+     * Lista todos los clientes con su fecha de vencimiento vigente (la del último pago
+     * registrado de cada uno, o null si nunca pagó), pero sin ningún dato monetario.
+     * Existe para que GERENCIA pueda saber quién está al día desde el listado de socios
+     * sin necesitar leer la tabla de pagos (a la que ya no tiene acceso). Resuelve las
+     * fechas de todos los clientes en una sola consulta para evitar un N+1.
+     * @return la lista de clientes como {@link ClienteResponse}, en el mismo orden que
+     *         devuelve el repositorio.
+     */
+    List<ClienteResponse> obtenerTodosConVencimiento();
+
+    /**
+     * Busca un cliente por ID y arma su respuesta pública, incluyendo la fecha de
+     * vencimiento de su último pago (o null si nunca pagó). Nunca incluye montos.
+     * @param id Identificador único del cliente.
+     * @return el cliente encontrado como {@link ClienteResponse}.
+     * @throws RuntimeException si el cliente no existe.
+     */
+    ClienteResponse obtenerRespuestaPorId(Integer id);
+
+    /**
+     * Busca un cliente por nombre y arma su respuesta pública, incluyendo la fecha de
+     * vencimiento de su último pago (o null si nunca pagó). Nunca incluye montos.
+     * @param nombre Nombre del cliente a buscar.
+     * @return el cliente encontrado como {@link ClienteResponse}.
+     * @throws RuntimeException si no se encuentra un cliente con ese nombre.
+     */
+    ClienteResponse buscarPorNombreConVencimiento(String nombre);
 }

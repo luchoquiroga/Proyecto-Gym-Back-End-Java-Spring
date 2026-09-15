@@ -1,8 +1,11 @@
 package com.gimnasio.api.services.impl;
 
+import com.gimnasio.api.dto.ClienteResponse;
 import com.gimnasio.api.models.Cliente;
+import com.gimnasio.api.models.Pago;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.repositories.ClienteRepository;
+import com.gimnasio.api.repositories.PagoRepository;
 import com.gimnasio.api.services.ClienteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -10,7 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Implementación de la lógica de negocio para la gestión de Clientes.
@@ -25,6 +31,7 @@ public class ClienteServiceImpl implements ClienteService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final ClienteRepository clienteRepository;
+    private final PagoRepository pagoRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -154,5 +161,52 @@ public class ClienteServiceImpl implements ClienteService {
     public Cliente buscarPorEmail(String email) {
         return clienteRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado con el email: " + email));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClienteResponse> obtenerTodosConVencimiento() {
+        List<Cliente> clientes = clienteRepository.findAll();
+
+        // Una sola consulta trae el último pago de CADA cliente; de acá arriba resolvemos
+        // todas las fechas de vencimiento con un Map en memoria en vez de consultar pago por
+        // pago dentro del for de abajo (eso sería un N+1 contra la tabla de pagos).
+        // La consulta devuelve TODOS los pagos empatados en la fecha máxima de cada cliente,
+        // así que un socio con dos pagos que vencen el mismo día (por ejemplo dos pases
+        // diarios comprados la misma fecha) aparece dos veces. Sin función de merge,
+        // Collectors.toMap tira IllegalStateException por clave duplicada y el listado
+        // entero devuelve 500; como la fecha empatada es la misma, quedarse con cualquiera
+        // de las dos es correcto.
+        Map<Integer, LocalDate> fechasVencimientoPorCliente = pagoRepository.findUltimoPagoPorCadaCliente().stream()
+                .collect(Collectors.toMap(
+                        pago -> pago.getCliente().getId(),
+                        Pago::getFechaVencimiento,
+                        (unaFecha, otraIgual) -> unaFecha));
+
+        return clientes.stream()
+                .map(cliente -> ClienteResponse.desde(cliente, fechasVencimientoPorCliente.get(cliente.getId())))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ClienteResponse obtenerRespuestaPorId(Integer id) {
+        Cliente cliente = obtenerPorId(id);
+        return ClienteResponse.desde(cliente, fechaVencimientoVigente(cliente.getId()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ClienteResponse buscarPorNombreConVencimiento(String nombre) {
+        Cliente cliente = buscarPorNombre(nombre);
+        return ClienteResponse.desde(cliente, fechaVencimientoVigente(cliente.getId()));
+    }
+
+    // Fecha de vencimiento vigente de UN solo cliente: acá no hace falta traer la tabla
+    // entera con findUltimoPagoPorCadaCliente(), alcanza con la última fila de ese socio.
+    private LocalDate fechaVencimientoVigente(Integer clienteId) {
+        return pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(clienteId)
+                .map(Pago::getFechaVencimiento)
+                .orElse(null);
     }
 }

@@ -280,7 +280,7 @@ al socio solo si el vencimiento calculado es futuro.
 devuelve 400 y no crea nada; un pago retroactivo ya vencido no deja al socio
 ACTIVO.
 
-**Fase 2 — GERENCIA deja de ver plata** (A2 + A5, juntos)
+**Fase 2 — GERENCIA deja de ver plata** (A2 + A5, juntos) — ✅ implementada el 2026-09-15
 1. Las cuatro lecturas de pagos (`GET /pagos`, `/buscar`, `/{id}`,
    `/cliente/{id}`) pasan a ADMIN en `SecurityConfig`. GERENCIA conserva solo
    `POST /pagos`. El CLIENTE mantiene el acceso a los propios por el chequeo de
@@ -293,6 +293,24 @@ vencimiento y **ningún monto**.
 
 Estas dos cosas no se separan: cerrar A2 sin A5 deja a GERENCIA sin poder
 atender el mostrador.
+
+**Lección que dejó esta fase, para no repetirla.** Al sacar a GERENCIA del
+atajo `esStaff`, los chequeos de ownership de `PagoController` pasaron a
+comparar `principal.id()` contra un id de `Cliente`. `usuarios` y `clientes`
+son tablas distintas con secuencias de id independientes: los números se
+solapan todo el tiempo, ambas arrancan en 1. Un GERENCIA con id de usuario 5
+pidiendo `/pagos/cliente/5` habría pasado el chequeo. El arreglo es exigir el
+rol antes de comparar el número:
+
+```java
+boolean esClienteDuenio = "CLIENTE".equals(principal.rol()) && clienteId.equals(principal.id());
+```
+
+Es el mismo patrón que causó los tres incidentes del historial: **un supuesto
+tácito del código viejo que deja de valer cuando cambia quién puede llegar
+hasta ahí.** Acá el supuesto era "si no es staff, entonces el id es de un
+cliente". Al agregar o quitar un rol de una condición, hay que releer qué
+asumía la rama de abajo.
 
 **Fase 3 — El contrato del API** (B1, B3, C2)
 DTOs de request y response por endpoint, y `Pageable` en los listados. Es la
@@ -372,6 +390,11 @@ que no se pierda en el camino:
   vive dentro de la pantalla que hay que esconder. Probablemente una acción
   "Registrar pago" desde la ficha del socio.
 - La ficha del socio muestra estado + vencimiento (dato nuevo de A5).
+- **Ya rompió (Fase 2):** los tres GET de `/api/v1/clientes` (listado, `/{id}`
+  y `/buscar`) devuelven ahora `ClienteResponse` — id, nombre, apellido,
+  telefono, email, estado y `fechaVencimiento` — en vez de la entidad completa.
+  El escritorio tiene que leer el campo nuevo y dejar de esperar los que ya no
+  vienen.
 - Adaptación a los DTOs y a los listados paginados de la Fase 3.
 - El error 400 de pago insuficiente necesita un mensaje claro en pantalla.
 

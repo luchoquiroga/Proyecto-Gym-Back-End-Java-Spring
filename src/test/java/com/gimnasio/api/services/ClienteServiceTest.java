@@ -1,8 +1,11 @@
 package com.gimnasio.api.services;
 
+import com.gimnasio.api.dto.ClienteResponse;
 import com.gimnasio.api.models.Cliente;
+import com.gimnasio.api.models.Pago;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.repositories.ClienteRepository;
+import com.gimnasio.api.repositories.PagoRepository;
 import com.gimnasio.api.services.impl.ClienteServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,6 +16,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -25,6 +30,9 @@ class ClienteServiceTest {
     @Mock
     private ClienteRepository clienteRepository;
 
+    @Mock
+    private PagoRepository pagoRepository;
+
     // Se usa una instancia real (no un mock) por el mismo motivo que en UsuarioServiceTest:
     // el hashing no es determinístico en su salida, mockearlo no aportaría nada.
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -35,7 +43,7 @@ class ClienteServiceTest {
 
     @BeforeEach
     void setUp() {
-        clienteService = new ClienteServiceImpl(clienteRepository, passwordEncoder);
+        clienteService = new ClienteServiceImpl(clienteRepository, pagoRepository, passwordEncoder);
         clientePrueba = new Cliente(1, "Carlos", "Gómez", "123456789", null, null, EstadoCliente.INACTIVO, null);
     }
 
@@ -250,5 +258,93 @@ class ClienteServiceTest {
         when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
 
         assertFalse(clienteService.autenticar("carlos@mail.com", "cualquierClave"));
+    }
+
+    @Test
+    @DisplayName("obtenerRespuestaPorId debe exponer la fecha de vencimiento del último pago, no la de uno anterior")
+    void obtenerRespuestaPorId_conVariosPagos_deberiaUsarFechaDelUltimoPago() {
+        when(clienteRepository.findById(1)).thenReturn(Optional.of(clientePrueba));
+
+        // El método derivado (findTopByClienteIdOrderByFechaVencimientoDesc) ya trae, de
+        // todos los pagos del cliente, el de mayor fecha de vencimiento: acá simulamos que
+        // el cliente tiene un pago viejo y este es el más nuevo, para comprobar que el
+        // service expone esta fecha y no la de un pago anterior.
+        LocalDate fechaPagoAnterior = LocalDate.of(2025, 1, 15);
+        LocalDate fechaUltimoPago = LocalDate.of(2026, 3, 20);
+        Pago ultimoPago = new Pago();
+        ultimoPago.setFechaVencimiento(fechaUltimoPago);
+        when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(1)).thenReturn(Optional.of(ultimoPago));
+
+        ClienteResponse resultado = clienteService.obtenerRespuestaPorId(1);
+
+        assertEquals(fechaUltimoPago, resultado.getFechaVencimiento());
+        assertNotEquals(fechaPagoAnterior, resultado.getFechaVencimiento());
+    }
+
+    @Test
+    @DisplayName("obtenerRespuestaPorId de un cliente sin pagos debe devolver fechaVencimiento null")
+    void obtenerRespuestaPorId_sinPagos_deberiaDevolverFechaVencimientoNull() {
+        when(clienteRepository.findById(1)).thenReturn(Optional.of(clientePrueba));
+        when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
+
+        ClienteResponse resultado = clienteService.obtenerRespuestaPorId(1);
+
+        assertNull(resultado.getFechaVencimiento());
+    }
+
+    @Test
+    @DisplayName("obtenerTodosConVencimiento no debe mezclar la fecha de vencimiento entre distintos clientes")
+    void obtenerTodosConVencimiento_deberiaAsignarLaFechaCorrectaACadaCliente() {
+        Cliente otroCliente = new Cliente(2, "Ana", "Lopez", "987654321", null, null, EstadoCliente.ACTIVO, null);
+        when(clienteRepository.findAll()).thenReturn(List.of(clientePrueba, otroCliente));
+
+        LocalDate fechaClientePrueba = LocalDate.of(2026, 5, 1);
+        LocalDate fechaOtroCliente = LocalDate.of(2026, 8, 10);
+
+        Pago pagoClientePrueba = new Pago();
+        pagoClientePrueba.setCliente(clientePrueba);
+        pagoClientePrueba.setFechaVencimiento(fechaClientePrueba);
+
+        Pago pagoOtroCliente = new Pago();
+        pagoOtroCliente.setCliente(otroCliente);
+        pagoOtroCliente.setFechaVencimiento(fechaOtroCliente);
+
+        when(pagoRepository.findUltimoPagoPorCadaCliente())
+                .thenReturn(List.of(pagoClientePrueba, pagoOtroCliente));
+
+        List<ClienteResponse> resultado = clienteService.obtenerTodosConVencimiento();
+
+        ClienteResponse respuestaClientePrueba = resultado.stream()
+                .filter(r -> r.getId().equals(1)).findFirst().orElseThrow();
+        ClienteResponse respuestaOtroCliente = resultado.stream()
+                .filter(r -> r.getId().equals(2)).findFirst().orElseThrow();
+
+        assertEquals(fechaClientePrueba, respuestaClientePrueba.getFechaVencimiento());
+        assertEquals(fechaOtroCliente, respuestaOtroCliente.getFechaVencimiento());
+    }
+
+    @Test
+    @DisplayName("Un socio con dos pagos que vencen el mismo día no debe romper el listado")
+    void obtenerTodosConVencimiento_conPagosEmpatadosEnLaMismaFecha_noDeberiaFallar() {
+        // findUltimoPagoPorCadaCliente() devuelve todos los pagos empatados en la fecha
+        // máxima, así que un socio que compró dos pases el mismo día aparece dos veces.
+        // Sin función de merge en el toMap, el listado completo devolvía 500.
+        when(clienteRepository.findAll()).thenReturn(List.of(clientePrueba));
+        LocalDate mismaFecha = LocalDate.of(2026, 6, 15);
+
+        Pago primerPago = new Pago();
+        primerPago.setCliente(clientePrueba);
+        primerPago.setFechaVencimiento(mismaFecha);
+
+        Pago segundoPago = new Pago();
+        segundoPago.setCliente(clientePrueba);
+        segundoPago.setFechaVencimiento(mismaFecha);
+
+        when(pagoRepository.findUltimoPagoPorCadaCliente()).thenReturn(List.of(primerPago, segundoPago));
+
+        List<ClienteResponse> resultado = clienteService.obtenerTodosConVencimiento();
+
+        assertEquals(1, resultado.size());
+        assertEquals(mismaFecha, resultado.getFirst().getFechaVencimiento());
     }
 }

@@ -36,7 +36,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Tests de integración del scoping por dueño en /api/v1/pagos: un Cliente solo
  * puede ver sus propios pagos, nunca los de otro, y no puede listar el total.
- * Staff (ADMIN/GERENCIA) sigue viendo todo sin restricción.
+ * GERENCIA opera socios y cobra, pero no ve datos monetarios: toda lectura de
+ * pagos (listado, búsqueda, por id, por cliente) queda reservada a ADMIN, salvo
+ * que el propio Cliente dueño consulte su id o su cliente/{id}. Registrar un
+ * pago (POST) sigue permitido para ADMIN y GERENCIA.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -100,6 +103,66 @@ class PagoControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/pagos").header("Authorization", "Bearer " + tokenAdmin))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Un token GERENCIA no puede listar todos los pagos: no ve datos monetarios")
+    void listarPagos_conTokenGerencia_deberiaDevolver403() throws Exception {
+        crearClienteConPago("Rocio", "Paez", "555-P9", null, null);
+        String tokenGerencia = loguearComoGerencia();
+
+        mockMvc.perform(get("/api/v1/pagos").header("Authorization", "Bearer " + tokenGerencia))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Un token GERENCIA no puede buscar pagos por nombre de cliente")
+    void buscarPagosPorNombreCliente_conTokenGerencia_deberiaDevolver403() throws Exception {
+        crearClienteConPago("Bruno", "Ferro", "555-P10", null, null);
+        String tokenGerencia = loguearComoGerencia();
+
+        mockMvc.perform(get("/api/v1/pagos/buscar")
+                        .param("nombreCliente", "Bruno")
+                        .header("Authorization", "Bearer " + tokenGerencia))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Un token GERENCIA no puede ver un pago puntual por id")
+    void obtenerPagoPorId_conTokenGerencia_deberiaDevolver403() throws Exception {
+        Cliente cliente = crearClienteConPago("Celia", "Nunez", "555-P11", null, null);
+        Pago pago = pagoRepository.findAll().stream()
+                .filter(p -> p.getCliente().getId().equals(cliente.getId()))
+                .findFirst().orElseThrow();
+        String tokenGerencia = loguearComoGerencia();
+
+        mockMvc.perform(get("/api/v1/pagos/" + pago.getId()).header("Authorization", "Bearer " + tokenGerencia))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Un token GERENCIA no puede ver los pagos de un cliente")
+    void obtenerPagosPorCliente_conTokenGerencia_deberiaDevolver403() throws Exception {
+        Cliente cliente = crearClienteConPago("Dario", "Ibarra", "555-P12", null, null);
+        String tokenGerencia = loguearComoGerencia();
+
+        mockMvc.perform(get("/api/v1/pagos/cliente/" + cliente.getId()).header("Authorization", "Bearer " + tokenGerencia))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Un token GERENCIA sigue pudiendo registrar un pago: cobrar no es lectura")
+    void registrarPago_conTokenGerencia_deberiaDevolver201() throws Exception {
+        Cliente cliente = crearClienteConPago("Wanda", "Coria", "555-P13", null, null);
+        Plan plan = planRepository.findAll().getFirst();
+        String tokenGerencia = loguearComoGerencia();
+
+        mockMvc.perform(post("/api/v1/pagos")
+                        .header("Authorization", "Bearer " + tokenGerencia)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new PagoRequest(cliente.getId(), plan.getId(), plan.getPrecio(), LocalDate.now()))))
+                .andExpect(status().isCreated());
     }
 
     @Test
@@ -202,6 +265,39 @@ class PagoControllerIntegrationTest {
         MvcResult resultado = mockMvc.perform(post("/api/v1/usuarios/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new LoginRequest("admin", "admin123"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(resultado.getResponse().getContentAsString()).get("accessToken").asText();
+    }
+
+    @Test
+    @DisplayName("Un GERENCIA no accede a los pagos del socio cuyo id coincide con su propio id de usuario")
+    void obtenerPagosPorCliente_conIdDeClienteIgualAlIdDeUsuarioGerencia_deberiaDevolver403() throws Exception {
+        // Regresión: `usuarios` y `clientes` son tablas distintas con secuencias de id
+        // independientes, así que el id de un usuario de staff coincide con el de algún
+        // socio todo el tiempo. Si el chequeo de ownership comparara ids sin mirar el
+        // rol, ese GERENCIA leería los pagos de ese socio.
+        String tokenGerencia = loguearComoGerencia();
+        Usuario gerencia = usuarioRepository.findByNombre("gerencia.pagos").orElseThrow();
+
+        mockMvc.perform(get("/api/v1/pagos/cliente/" + gerencia.getId())
+                        .header("Authorization", "Bearer " + tokenGerencia))
+                .andExpect(status().isForbidden());
+    }
+
+    private String loguearComoGerencia() throws Exception {
+        // No hay un usuario GERENCIA sembrado: lo crea un ADMIN, como en la vida real
+        // (solo ADMIN puede dar de alta cuentas de staff, ver SecurityConfig).
+        String tokenAdmin = loguearComoAdmin();
+        mockMvc.perform(post("/api/v1/usuarios")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\"gerencia.pagos\",\"contrasena\":\"claveGerencia123\",\"rol\":\"GERENCIA\"}"))
+                .andExpect(status().isCreated());
+
+        MvcResult resultado = mockMvc.perform(post("/api/v1/usuarios/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("gerencia.pagos", "claveGerencia123"))))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(resultado.getResponse().getContentAsString()).get("accessToken").asText();

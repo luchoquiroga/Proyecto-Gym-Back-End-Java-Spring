@@ -43,10 +43,10 @@ Roles/principales que existen hoy:
 
 | Método | Ruta | Quién puede | Notas |
 |---|---|---|---|
-| GET | `` (listado) | ADMIN, GERENCIA | |
-| GET | `/buscar` | ADMIN, GERENCIA | |
-| GET | `/cliente/{clienteId}` | ADMIN, GERENCIA, o el propio CLIENTE dueño | chequeo en `PagoController.obtenerPagosPorCliente` |
-| GET | `/{id}` | ADMIN, GERENCIA, o el propio CLIENTE dueño del pago | agregado 2026-09-14, antes cualquier autenticado; chequeo en `PagoController.obtenerPorId` vía `pago.getCliente().getId()` |
+| GET | `` (listado) | ADMIN | 2026-09-15: sacado a GERENCIA (ver Historial) |
+| GET | `/buscar` | ADMIN | 2026-09-15: sacado a GERENCIA |
+| GET | `/cliente/{clienteId}` | ADMIN, o el propio CLIENTE dueño | chequeo en `PagoController.obtenerPagosPorCliente`; 2026-09-15 dejó de aceptar GERENCIA |
+| GET | `/{id}` | ADMIN, o el propio CLIENTE dueño del pago | agregado 2026-09-14, antes cualquier autenticado; chequeo en `PagoController.obtenerPorId` vía `pago.getCliente().getId()`; 2026-09-15 dejó de aceptar GERENCIA |
 | POST | `` (registrar pago) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía registrarse pagos a sí mismo o a otros). Desde 2026-09-15 guarda `registrado_por` tomado del token (nunca del body) y rechaza montos menores al precio del plan |
 
 ## `/api/v1/planes`
@@ -67,6 +67,12 @@ Roles/principales que existen hoy:
 Público.
 
 ---
+
+> **Regla de los dos roles de staff:** GERENCIA opera socios y cobra; ADMIN es
+> el único que ve datos monetarios. Por eso GERENCIA conserva `POST /pagos`
+> (cobrar) pero ninguna lectura de pagos. Para saber si un socio está al día
+> sin ver plata, GERENCIA usa el estado y la fecha de vencimiento que expone el
+> propio socio en `/api/v1/clientes` (ver `2026-09-15-replanteo-backend.md` §2.3).
 
 ## Gaps conocidos
 
@@ -91,6 +97,13 @@ en datos adivinables) se cerró el 2026-09-14, ver Historial.
   POST restringido a ADMIN/GERENCIA en `SecurityConfig`, y `obtenerPorId`
   ahora chequea `pago.getCliente().getId() == principal.id()` igual que ya
   hacía `obtenerPagosPorCliente`.
+- **2026-09-15**: restringir `/dashboard` a ADMIN era una cortina y no un
+  permiso: las cuatro lecturas de `/api/v1/pagos` seguían abiertas a GERENCIA,
+  así que con el listado completo se reconstruían los ingresos del gimnasio a
+  mano. No fue un incidente reportado sino un hueco detectado al escribir el
+  replanteo del backend. Corregido pasando toda lectura de pagos a ADMIN, y
+  exponiendo la fecha de vencimiento del socio para que GERENCIA siga sabiendo
+  quién está al día sin ver montos.
 - **2026-09-14**: `ClienteController.registro` verificaba identidad solo con
   nombre+apellido+teléfono, sin ninguna prueba de posesión — cualquiera que
   conociera/adivinara esos tres datos de un cliente real podía reclamar su

@@ -2,9 +2,14 @@ package com.gimnasio.api.controllers;
 
 import com.gimnasio.api.dto.ClienteLoginRequest;
 import com.gimnasio.api.dto.ClienteRegistroRequest;
+import com.gimnasio.api.dto.LoginRequest;
 import com.gimnasio.api.models.Cliente;
+import com.gimnasio.api.models.Pago;
+import com.gimnasio.api.models.Plan;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.repositories.ClienteRepository;
+import com.gimnasio.api.repositories.PagoRepository;
+import com.gimnasio.api.repositories.PlanRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +23,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -42,6 +49,12 @@ class ClienteControllerIntegrationTest {
 
     @Autowired
     private ClienteRepository clienteRepository;
+
+    @Autowired
+    private PagoRepository pagoRepository;
+
+    @Autowired
+    private PlanRepository planRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -272,6 +285,56 @@ class ClienteControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/clientes/" + otroCliente.getId()).header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /clientes/{id} de un socio con un pago vigente devuelve su fechaVencimiento, sin exponer montos ni contraseña")
+    void obtenerPorId_conPagoVigente_deberiaDevolverFechaVencimientoSinDatosMonetarios() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Rocio", "Alonso", "555-C14", null, null, EstadoCliente.ACTIVO, null));
+        Plan plan = planRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("No hay planes sembrados por DataInitializer"));
+        LocalDate fechaVencimientoEsperada = LocalDate.now().plusDays(plan.getDuracion());
+
+        Pago pago = new Pago();
+        pago.setCliente(cliente);
+        pago.setPlan(plan);
+        pago.setMontoAbonado(plan.getPrecio());
+        pago.setFechaPago(LocalDate.now());
+        pago.setFechaVencimiento(fechaVencimientoEsperada);
+        pagoRepository.save(pago);
+
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechaVencimiento").value(fechaVencimientoEsperada.toString()))
+                .andExpect(jsonPath("$.montoAbonado").doesNotExist())
+                .andExpect(jsonPath("$.contrasena").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("GET /clientes/{id} de un socio que nunca pagó devuelve fechaVencimiento null")
+    void obtenerPorId_sinPagos_deberiaDevolverFechaVencimientoNull() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Federico", "Suarez", "555-C15", null, null, EstadoCliente.INACTIVO, null));
+
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechaVencimiento").doesNotExist());
+    }
+
+    private String loguearComoAdmin() throws Exception {
+        MvcResult resultado = mockMvc.perform(post("/api/v1/usuarios/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("admin", "admin123"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(resultado.getResponse().getContentAsString()).get("accessToken").asText();
     }
 
     private void registrarCliente(String nombre, String apellido, String telefono,

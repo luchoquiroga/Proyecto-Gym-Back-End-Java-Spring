@@ -33,8 +33,14 @@ public class PagoController {
     public ResponseEntity<Pago> obtenerPorId(@PathVariable Integer id,
                                               @AuthenticationPrincipal AuthPrincipal principal) {
         Pago pago = pagoService.obtenerPorId(id);
-        boolean esStaff = "ADMIN".equals(principal.rol()) || "GERENCIA".equals(principal.rol());
-        if (!esStaff && !pago.getCliente().getId().equals(principal.id())) {
+        // El id del principal solo significa "cliente" si el principal ES un cliente:
+        // Usuario y Cliente son tablas distintas con secuencias de id independientes,
+        // así que comparar ids sin mirar el rol dejaría pasar a un GERENCIA cuyo id de
+        // usuario coincida por casualidad con el id del socio dueño del pago.
+        boolean esAdmin = "ADMIN".equals(principal.rol());
+        boolean esClienteDuenio = "CLIENTE".equals(principal.rol())
+                && pago.getCliente().getId().equals(principal.id());
+        if (!esAdmin && !esClienteDuenio) {
             throw new AccessDeniedException("No podés acceder a los pagos de otro cliente");
         }
         return ResponseEntity.ok(pago);
@@ -43,8 +49,11 @@ public class PagoController {
     @GetMapping("/cliente/{clienteId}")
     public ResponseEntity<List<Pago>> obtenerPagosPorCliente(@PathVariable Integer clienteId,
                                                               @AuthenticationPrincipal AuthPrincipal principal) {
-        boolean esStaff = "ADMIN".equals(principal.rol()) || "GERENCIA".equals(principal.rol());
-        if (!esStaff && !clienteId.equals(principal.id())) {
+        // Mismo motivo que en obtenerPorId: el id solo identifica a un socio si el
+        // principal es un CLIENTE, nunca por el número suelto.
+        boolean esAdmin = "ADMIN".equals(principal.rol());
+        boolean esClienteDuenio = "CLIENTE".equals(principal.rol()) && clienteId.equals(principal.id());
+        if (!esAdmin && !esClienteDuenio) {
             throw new AccessDeniedException("No podés acceder a los pagos de otro cliente");
         }
         return ResponseEntity.ok(pagoService.obtenerPagosPorCliente(clienteId));

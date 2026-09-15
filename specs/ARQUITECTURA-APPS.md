@@ -1,7 +1,8 @@
 # Arquitectura de apps: quién consume qué del API
 
 Fecha: 2026-09-15
-Estado: borrador — decisiones abiertas al final
+Estado: vigente — actualizado con la Fase 2 del replanteo; decisiones
+abiertas al final
 
 Este documento delimita las tres apps que van a pegarle a este backend y qué
 superficie del API le corresponde a cada una. Es el paso previo a escribir la
@@ -92,25 +93,17 @@ La intención de negocio, escrita para que no se pierda:
 - **ADMIN además ve el negocio.** Cuánto entra, con qué planes, en qué meses.
   Es información del dueño.
 
-**Pero el código de hoy no sostiene esa separación.** `/dashboard` está
-restringido a ADMIN, sí — pero los datos crudos que alimentan ese dashboard no
-lo están: `GET /api/v1/pagos` (listado completo) y `GET /api/v1/pagos/buscar`
-están permitidos a ADMIN **y** GERENCIA. Un GERENCIA lista todos los pagos y
-suma; el número del dashboard queda oculto, la información no.
+Durante un tiempo el código **no** sostuvo esa separación: `/dashboard` estaba
+restringido a ADMIN, pero los datos crudos que lo alimentan no
+(`GET /api/v1/pagos` y `/pagos/buscar` aceptaban GERENCIA), así que con el
+listado completo se reconstruían los ingresos a mano. Esconder el dashboard era
+una cortina, no un permiso.
 
-O sea: esconder `/dashboard` de GERENCIA es hoy una cortina, no un permiso.
-Esto **no se resuelve en este documento** — es un cambio al modelo de
-autorización y por lo tanto va con spec propia, fila nueva en
-`AUTHZ-MATRIX.md` y `/security-review`. Queda anotado en §7 como decisión
-abierta, porque afecta directamente a qué puede hacer la web-staff, no solo
-mobile.
-
-Ojo con la tensión real que tiene esa decisión: GERENCIA **necesita** registrar
-pagos (`POST /api/v1/pagos`) y probablemente ver los pagos de un cliente
-puntual cuando lo atiende en el mostrador (`GET /pagos/cliente/{id}`). Lo que
-no necesita es el **agregado** de todos los pagos. Así que la respuesta
-probablemente no sea "sacarle pagos a GERENCIA", sino separar *consulta
-puntual de un cliente* de *listado global del negocio*.
+**Cerrado el 2026-09-15** (Fase 2 del replanteo): toda lectura de pagos quedó en
+ADMIN. GERENCIA conserva `POST /pagos`, o sea cobrar, y para saber si un socio
+está al día usa el estado y la fecha de vencimiento que expone el propio socio
+— un estado y una fecha, sin ningún monto adentro. La línea entre los dos roles
+no pasa entre "puntual y global" sino entre **operar** y **ver**.
 
 ---
 
@@ -161,11 +154,15 @@ pueda operar desde el celular.
 
 | Endpoint | Permitido a | Web-staff | Mobile-admin | Web-socio |
 |---|---|---|---|---|
-| GET `` (listado) | ADMIN, GERENCIA | ✓ (hoy) | ✓ | — |
-| GET `/buscar` | ADMIN, GERENCIA | ✓ | ✓ | — |
-| GET `/cliente/{clienteId}` | staff, o el dueño | ✓ | ✓ | ✓ (los suyos) |
-| GET `/{id}` | staff, o el dueño | ✓ | ✓ | ✓ (el suyo) |
+| GET `` (listado) | **ADMIN** | ✓ solo ADMIN | ✓ | — |
+| GET `/buscar` | **ADMIN** | ✓ solo ADMIN | ✓ | — |
+| GET `/cliente/{clienteId}` | ADMIN, o el dueño | ✓ solo ADMIN | ✓ | ✓ (los suyos) |
+| GET `/{id}` | ADMIN, o el dueño | ✓ solo ADMIN | ✓ | ✓ (el suyo) |
 | POST `` (registrar) | ADMIN, GERENCIA | ✓ | — | — |
+
+Desde el 2026-09-15 ninguna lectura de pagos acepta GERENCIA: en la web-staff
+estas pantallas existen solo para ADMIN. GERENCIA cobra (`POST`) y se guía por
+el estado y la fecha de vencimiento del socio, que no llevan montos.
 
 Criterio: mobile lee la plata, no la mueve. Registrar un pago es el acto de
 mostrador por excelencia y pasa por la web/escritorio, donde está quien cobra.
