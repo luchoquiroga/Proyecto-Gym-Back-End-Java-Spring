@@ -4,6 +4,7 @@ import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Usuario;
 import com.gimnasio.api.models.enums.RolUsuario;
 import com.gimnasio.api.repositories.UsuarioRepository;
+import com.gimnasio.api.security.RefreshTokenService;
 import com.gimnasio.api.services.UsuarioService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,6 +20,9 @@ public class UsuarioServiceImpl implements UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    // Una baja o un cambio de contraseña tienen que cerrar las sesiones abiertas de esa cuenta,
+    // o el cambio no se nota hasta que expire el último refresh token (30 días).
+    private final RefreshTokenService refreshTokenService;
 
     @Override
     @Transactional
@@ -29,9 +33,17 @@ public class UsuarioServiceImpl implements UsuarioService {
         if (usuario.getContrasena() == null || usuario.getContrasena().trim().isEmpty()) {
             throw new IllegalArgumentException("La contraseña es obligatoria.");
         }
-        if (usuarioRepository.findByNombre(usuario.getNombre()).isPresent()) {
-            throw new IllegalArgumentException("Ya existe un usuario registrado con el nombre: " + usuario.getNombre());
-        }
+        // Una cuenta dada de baja sigue ocupando su nombre (UNIQUE desde V4), así que el
+        // duplicado se avisa distinto: el camino no es crear otra igual sino reactivar esa.
+        usuarioRepository.findByNombre(usuario.getNombre()).ifPresent(existente -> {
+            if (existente.isActivo()) {
+                throw new IllegalArgumentException(
+                        "Ya existe un usuario registrado con el nombre: " + usuario.getNombre());
+            }
+            throw new IllegalArgumentException(
+                    "El nombre '" + usuario.getNombre() + "' pertenece a una cuenta dada de baja. "
+                            + "Reactivala en vez de crear una nueva.");
+        });
         // Un alta nunca debe poder pisar una fila existente vía un id enviado en el body.
         usuario.setId(null);
         usuario.setContrasena(passwordEncoder.encode(usuario.getContrasena()));
@@ -42,7 +54,7 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Transactional(readOnly = true)
     public boolean autenticar(String nombre, String contrasena) {
         return usuarioRepository.findByNombre(nombre)
-                .map(usuario -> passwordEncoder.matches(contrasena, usuario.getContrasena()))
+                .map(usuario -> usuario.isActivo() && passwordEncoder.matches(contrasena, usuario.getContrasena()))
                 .orElse(false);
     }
 
@@ -55,29 +67,79 @@ public class UsuarioServiceImpl implements UsuarioService {
 
     @Override
     @Transactional
-    public Usuario actualizarContrasena(String nombre, String nuevaContrasena) {
-        if (nuevaContrasena == null || nuevaContrasena.trim().isEmpty()) {
-            throw new IllegalArgumentException("La nueva contraseña no puede estar vacía.");
+    public Usuario cambiarContrasenaPropia(Integer usuarioId, String contrasenaActual, String nuevaContrasena) {
+        Usuario usuario = buscarPorId(usuarioId);
+
+        if (!passwordEncoder.matches(contrasenaActual, usuario.getContrasena())) {
+            // 400 y no 401: el token es válido, lo que está mal es un dato del body. Un 401
+            // haría que el frontend crea que se venció la sesión y mande a loguearse de nuevo.
+            throw new IllegalArgumentException("La contraseña actual no es correcta.");
         }
-        Usuario usuario = buscarPorNombre(nombre);
-        usuario.setContrasena(passwordEncoder.encode(nuevaContrasena));
-        return usuarioRepository.save(usuario);
+        if (passwordEncoder.matches(nuevaContrasena, usuario.getContrasena())) {
+            throw new IllegalArgumentException("La nueva contraseña tiene que ser distinta de la actual.");
+        }
+
+        return guardarContrasena(usuario, nuevaContrasena);
     }
 
     @Override
     @Transactional
-    public void eliminar(Integer id, Integer callerId) {
+    public Usuario resetearContrasena(Integer id, String nuevaContrasena, Integer callerId) {
         if (id.equals(callerId)) {
-            throw new IllegalArgumentException("No podés eliminar tu propio usuario.");
+            // Sin esto, un ADMIN podría cambiarse su propia clave sin saber la anterior, y la
+            // verificación de cambiarContrasenaPropia sería decorativa para el rol que importa.
+            throw new IllegalArgumentException(
+                    "Para cambiar tu propia contraseña usá /cambiar-contrasena, que pide la actual.");
         }
 
-        Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("No se puede eliminar: Usuario no encontrado con ID " + id));
+        Usuario usuario = buscarPorId(id);
+        return guardarContrasena(usuario, nuevaContrasena);
+    }
 
-        if (usuario.getRol() == RolUsuario.ADMIN && usuarioRepository.countByRol(RolUsuario.ADMIN) <= 1) {
-            throw new IllegalArgumentException("No se puede eliminar el último administrador del sistema.");
+    @Override
+    @Transactional
+    public void darDeBaja(Integer id, Integer callerId) {
+        cambiarActivo(id, false, callerId);
+    }
+
+    @Override
+    @Transactional
+    public Usuario cambiarActivo(Integer id, boolean activo, Integer callerId) {
+        if (!activo && id.equals(callerId)) {
+            throw new IllegalArgumentException("No podés dar de baja tu propio usuario.");
         }
 
-        usuarioRepository.deleteById(id);
+        Usuario usuario = buscarPorId(id);
+
+        // Se cuentan los ADMIN activos, no todos: un ADMIN dado de baja no puede loguearse,
+        // así que no sirve para administrar el sistema. Contar todos dejaría dar de baja al
+        // último que queda en pie mientras hubiera otro inactivo en la tabla.
+        if (!activo && usuario.isActivo() && usuario.getRol() == RolUsuario.ADMIN
+                && usuarioRepository.countByRolAndActivoTrue(RolUsuario.ADMIN) <= 1) {
+            throw new IllegalArgumentException("No se puede dar de baja al último administrador del sistema.");
+        }
+
+        usuario.setActivo(activo);
+        Usuario guardado = usuarioRepository.save(usuario);
+
+        if (!activo) {
+            // La fila queda, pero las sesiones no: sin esto podría seguir renovando su token
+            // indefinidamente y la baja no se notaría nunca.
+            refreshTokenService.revocarTodosDe(id);
+        }
+
+        return guardado;
+    }
+
+    private Usuario buscarPorId(Integer id) {
+        return usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado con ID " + id));
+    }
+
+    private Usuario guardarContrasena(Usuario usuario, String nuevaContrasena) {
+        usuario.setContrasena(passwordEncoder.encode(nuevaContrasena));
+        Usuario guardado = usuarioRepository.save(usuario);
+        refreshTokenService.revocarTodosDe(usuario.getId());
+        return guardado;
     }
 }

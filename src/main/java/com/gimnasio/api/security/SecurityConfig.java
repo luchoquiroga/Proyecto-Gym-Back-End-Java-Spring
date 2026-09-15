@@ -75,7 +75,19 @@ public class SecurityConfig {
                         // Solo ADMIN: gestión de cuentas de usuario, catálogo de planes (altas/bajas) y dashboard
                         .requestMatchers(HttpMethod.POST, "/api/v1/usuarios").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/usuarios/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/usuarios/cambiar-contrasena").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/usuarios/*/activo").hasRole("ADMIN")
+                        // Reset administrativo de la clave de OTRA cuenta: sin pedir la anterior,
+                        // porque el ADMIN no la sabe. El service rechaza usarlo contra uno mismo.
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/usuarios/*/contrasena").hasRole("ADMIN")
+                        // Cambio de la contraseña PROPIA: cualquiera de los dos roles de staff.
+                        // Va acá y no bajo el catch-all `.authenticated()` a propósito: bajo el
+                        // catch-all también llegaría un principal CLIENTE, y como el endpoint
+                        // resuelve la cuenta con `principal.id()`, ese id sería de la tabla
+                        // `clientes`, cuyas claves se solapan con las de `usuarios` (las dos
+                        // secuencias arrancan en 1). Le cambiaría la contraseña al empleado que
+                        // casualmente tenga el mismo número. Es la trampa de la Fase 2.
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/usuarios/cambiar-contrasena")
+                                .hasAnyRole("ADMIN", "GERENCIA")
                         .requestMatchers("/api/v1/dashboard/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/planes").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/planes/**").hasRole("ADMIN")

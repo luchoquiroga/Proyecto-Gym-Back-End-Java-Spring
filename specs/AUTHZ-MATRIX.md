@@ -20,8 +20,10 @@ Roles/principales que existen hoy:
 | POST | `/refresh` | Público (requiere cookie `refreshToken` válida) | |
 | POST | `/logout` | Público (requiere cookie, es no-op si no hay) | |
 | POST | `` | ADMIN | crea un `Usuario` nuevo (alta de staff) |
-| PUT | `/cambiar-contrasena` | ADMIN | ⚠️ ver Gaps conocidos |
-| DELETE | `/{id}` | ADMIN | no permite auto-eliminarse ni eliminar al último ADMIN (`UsuarioServiceImpl.eliminar`) |
+| PUT | `/cambiar-contrasena` | ADMIN, GERENCIA — **solo la propia** | 2026-09-15: antes era solo-ADMIN y elegía la cuenta por un `nombre` del body; ahora sale del `AuthPrincipal` y exige la contraseña actual. La regla es `hasAnyRole`, no el catch-all: bajo `.authenticated()` entraría un CLIENTE y su id se solaparía con el de un `Usuario` |
+| PUT | `/{id}/contrasena` | ADMIN | reset administrativo (el ADMIN no sabe la clave anterior). El service lo rechaza contra uno mismo: para la cuenta propia hay que usar `/cambiar-contrasena`, que pide la actual |
+| DELETE | `/{id}` | ADMIN | **baja lógica** (`activo = false`) + revoca las sesiones de esa cuenta; no borra la fila. No permite auto-darse de baja ni dar de baja al último ADMIN **activo** (`UsuarioServiceImpl.cambiarActivo`) |
+| PATCH | `/{id}/activo` | ADMIN | reactiva (o desactiva) una cuenta; única forma de revertir una baja, porque el nombre de login sigue ocupado por esa fila |
 
 ## `/api/v1/clientes` (staff + el propio cliente en algunos GET)
 
@@ -37,7 +39,7 @@ Roles/principales que existen hoy:
 | POST | `` (alta) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado |
 | PUT | `/{id}` | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía editar cualquier registro) |
 | PATCH | `/{id}/estado` | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía auto-activarse sin pagar) |
-| DELETE | `/{id}` | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado |
+| DELETE | `/{id}` | ADMIN, GERENCIA | **baja lógica**: pone `estado = INACTIVO` (`ClienteServiceImpl.darDeBaja`), nunca borra la fila, así que no choca con `pagos`. Agregado 2026-09-14, antes cualquier autenticado |
 
 ## `/api/v1/pagos`
 
@@ -76,11 +78,47 @@ Público.
 
 ## Gaps conocidos
 
-Ninguno pendiente por el momento. El último (identidad de `/registro` basada
-en datos adivinables) se cerró el 2026-09-14, ver Historial.
+**No hay limpieza de refresh tokens vencidos.** `refresh_tokens` y
+`cliente_refresh_tokens` solo crecen: `revocar` marca `revocado = true` y nada
+borra nunca una fila, ni siquiera cuando ya expiró. Dejó de ser urgente el
+2026-09-15 —ya no bloquea ninguna baja, ver Historial— pero sigue siendo una
+tabla que crece sin techo.
+
+**Un access token sobrevive a la baja de su cuenta.**
+`JwtAuthenticationFilter` no consulta la base, así que quien fue dado de baja
+(o le cambiaron la contraseña) sigue entrando con el token que ya tenía hasta
+que expira: hasta 30 minutos. Lo que sí se cierra de inmediato es la
+renovación, porque se le revocan los refresh tokens y `RefreshTokenService.validar`
+rechaza los de una cuenta inactiva. Aceptado a propósito: validar contra la
+base en cada request es una consulta por request para tapar una ventana de
+media hora. Si alguna vez hace falta cerrarla (una baja por conflicto, por
+ejemplo), la salida es una lista de revocación en memoria, no ir a la base.
+
+El gap anterior (identidad de `/registro` basada en datos adivinables) se cerró
+el 2026-09-14, ver Historial.
 
 ## Historial de incidentes (para que no se repitan)
 
+- **2026-09-15**: dar de baja a un empleado no funcionaba contra la base. La
+  matriz decía que ADMIN podía `DELETE /api/v1/usuarios/{id}` y el código lo
+  permitía, pero `refresh_tokens` referencia a `usuarios` con una FK sin
+  cascada y sus filas no se borran nunca, así que cualquiera que se hubiera
+  logueado alguna vez daba 409. No se arregló con cascada: `V3` había creado
+  `pagos.registrado_por ... ON DELETE SET NULL`, así que un borrado exitoso
+  habría puesto en NULL el autor de todos los pagos que esa persona cobró,
+  destruyendo la auditoría de caja que `V3` existe para garantizar. Se pasó a
+  baja lógica (`usuarios.activo`, `V5`), que además es lo que ya hacía la baja
+  de clientes.
+- **2026-09-15**: `PUT /usuarios/cambiar-contrasena` era un reset
+  administrativo disfrazado de cambio de contraseña: solo-ADMIN, elegía la
+  cuenta por un `nombre` **del body** y no pedía la contraseña actual. Mismo
+  patrón que `registrado_por` antes de la Fase 1 —identidad tomada del body en
+  vez del token— con dos consecuencias: GERENCIA no podía cambiar su propia
+  clave, y una sesión ADMIN olvidada abierta alcanzaba para quedarse con
+  cualquier cuenta de staff. Separado en dos endpoints: el propio (ADMIN o
+  GERENCIA, identidad del `AuthPrincipal`, exige la actual) y el reset
+  administrativo (`PUT /{id}/contrasena`, solo ADMIN, no usable contra uno
+  mismo).
 - **2026-09-13**: al agregar el login de clientes (rol `CLIENTE`), el catch-all
   `.anyRequest().authenticated()` de `SecurityConfig` pasó de significar
   "solo staff" a "staff o cualquier cliente registrado", pero las reglas de

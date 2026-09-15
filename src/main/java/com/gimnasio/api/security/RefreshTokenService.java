@@ -57,6 +57,14 @@ public class RefreshTokenService {
             throw new JwtException("Refresh token expirado o revocado");
         }
 
+        // Una cuenta dada de baja no puede estirar su sesión, aunque su refresh token siga
+        // vigente y sin revocar. Es el cierre real de la baja: el access token que ya tenía
+        // en la mano sigue sirviendo hasta que expira (el filtro no consulta la base), pero
+        // a partir de ahí no hay forma de renovarlo.
+        if (!registro.getUsuario().isActivo()) {
+            throw new JwtException("La cuenta está dada de baja");
+        }
+
         return registro.getUsuario();
     }
 
@@ -67,6 +75,19 @@ public class RefreshTokenService {
     public String rotar(String tokenActual, Usuario usuario) {
         revocar(tokenActual);
         return crear(usuario);
+    }
+
+    /**
+     * Cierra todas las sesiones abiertas de un usuario. Se usa cuando la cuenta deja de ser
+     * usable tal como está: una baja, o un cambio/reset de contraseña (si la contraseña se
+     * cambió porque alguien más la sabía, dejar viva la sesión de ese alguien no tendría
+     * sentido).
+     */
+    @Transactional
+    public void revocarTodosDe(Integer usuarioId) {
+        var vigentes = refreshTokenRepository.findByUsuarioIdAndRevocadoFalse(usuarioId);
+        vigentes.forEach(rt -> rt.setRevocado(true));
+        refreshTokenRepository.saveAll(vigentes);
     }
 
     @Transactional

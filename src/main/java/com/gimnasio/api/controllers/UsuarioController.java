@@ -1,10 +1,12 @@
 package com.gimnasio.api.controllers;
 
+import com.gimnasio.api.dto.CambioActivoRequest;
 import com.gimnasio.api.dto.CambioContrasenaRequest;
 import com.gimnasio.api.dto.LoginRequest;
 import com.gimnasio.api.dto.LoginResponse;
 import com.gimnasio.api.dto.MensajeResponse;
 import com.gimnasio.api.dto.RefreshResponse;
+import com.gimnasio.api.dto.ResetContrasenaRequest;
 import com.gimnasio.api.dto.UsuarioRequest;
 import com.gimnasio.api.dto.UsuarioResponse;
 import com.gimnasio.api.models.Usuario;
@@ -116,19 +118,56 @@ public class UsuarioController {
         return ResponseEntity.status(HttpStatus.CREATED).body(UsuarioResponse.desde(nuevoUsuario));
     }
 
+    /**
+     * Cambia la contraseña de la cuenta que hace la llamada. Quién es sale del token, no del
+     * body: antes el body traía un `nombre`, así que el llamador elegía a quién cambiársela.
+     */
     @PutMapping("/cambiar-contrasena")
-    public ResponseEntity<UsuarioResponse> cambiarContrasena(@Valid @RequestBody CambioContrasenaRequest request) {
-        Usuario usuarioActualizado = usuarioService.actualizarContrasena(
-                request.getNombre(),
+    public ResponseEntity<UsuarioResponse> cambiarContrasena(@Valid @RequestBody CambioContrasenaRequest request,
+                                                             @AuthenticationPrincipal AuthPrincipal principal) {
+        Usuario usuarioActualizado = usuarioService.cambiarContrasenaPropia(
+                principal.id(),
+                request.getContrasenaActual(),
                 request.getNuevaContrasena()
         );
         return ResponseEntity.ok(UsuarioResponse.desde(usuarioActualizado));
     }
 
+    /**
+     * Reset administrativo de la contraseña de otra cuenta (solo ADMIN, ver SecurityConfig).
+     */
+    @PutMapping("/{id}/contrasena")
+    public ResponseEntity<UsuarioResponse> resetearContrasena(@PathVariable Integer id,
+                                                              @Valid @RequestBody ResetContrasenaRequest request,
+                                                              @AuthenticationPrincipal AuthPrincipal principal) {
+        Usuario usuarioActualizado = usuarioService.resetearContrasena(
+                id,
+                request.getNuevaContrasena(),
+                principal.id()
+        );
+        return ResponseEntity.ok(UsuarioResponse.desde(usuarioActualizado));
+    }
+
+    /**
+     * Baja lógica de una cuenta de staff: queda inactiva y pierde sus sesiones, pero la fila
+     * se conserva (si no, se perdería el autor de los pagos que cobró; ver V5).
+     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id, @AuthenticationPrincipal AuthPrincipal principal) {
-        usuarioService.eliminar(id, principal.id());
+    public ResponseEntity<Void> darDeBaja(@PathVariable Integer id, @AuthenticationPrincipal AuthPrincipal principal) {
+        usuarioService.darDeBaja(id, principal.id());
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Activa o desactiva una cuenta. Es la única forma de revertir una baja: el nombre de
+     * login sigue ocupado por esa fila, así que no se puede recrear la cuenta.
+     */
+    @PatchMapping("/{id}/activo")
+    public ResponseEntity<UsuarioResponse> cambiarActivo(@PathVariable Integer id,
+                                                         @Valid @RequestBody CambioActivoRequest request,
+                                                         @AuthenticationPrincipal AuthPrincipal principal) {
+        Usuario usuarioActualizado = usuarioService.cambiarActivo(id, request.getActivo(), principal.id());
+        return ResponseEntity.ok(UsuarioResponse.desde(usuarioActualizado));
     }
 
     private void agregarCookieRefresh(HttpServletResponse response, String valor, long maxAgeSegundos) {

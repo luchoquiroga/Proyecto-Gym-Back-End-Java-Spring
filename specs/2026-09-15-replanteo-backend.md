@@ -363,6 +363,12 @@ Lo que salió de acá y no estaba previsto:
   Flyway, la URL de Neon que no es JDBC, el `JWT_SECRET` que no se decodifica
   de base64 pese al nombre del parámetro).
 
+**Fase 5 — Higiene de la gestión de staff** — ✅ implementada el 2026-09-15
+No estaba en este plan: salió del hueco que quedó anotado al cerrar la Fase 4
+(dar de baja a un empleado fallaba siempre contra la base) y de un segundo
+problema que apareció al mirarlo, el cambio de contraseña. Tiene spec propia:
+`2026-09-15-higiene-staff.md`.
+
 **Después:** con el contrato ya quieto, se escriben los tickets de UI (§10) y
 la spec de mobile.
 
@@ -436,6 +442,16 @@ que no se pierda en el camino:
   vienen.
 - Adaptación a los DTOs y a los listados paginados de la Fase 3.
 - El error 400 de pago insuficiente necesita un mensaje claro en pantalla.
+- **Ya rompió (Fase 5):** la pantalla de cambio de contraseña mandaba
+  `{nombre, nuevaContrasena}`. Ahora el endpoint propio pide
+  `{contrasenaActual, nuevaContrasena}` y le cambia la clave a quien tiene el
+  token, así que la pantalla necesita un campo "contraseña actual" y dejar de
+  mandar el nombre. El reset de la clave de otro empleado es una pantalla
+  distinta, solo para ADMIN (`PUT /usuarios/{id}/contrasena`).
+- La baja de un empleado ya no lo borra: lo desactiva. Si hay una lista de
+  usuarios, tiene que distinguir cuentas activas de dadas de baja y ofrecer
+  reactivar (`PATCH /usuarios/{id}/activo`), que es la única salida cuando se
+  dio de baja a la persona equivocada.
 
 **Web** — todavía no existe; nace directamente contra el contrato nuevo, así
 que no acumula ticket de migración. Tiene dos áreas (staff y socios) y de ella

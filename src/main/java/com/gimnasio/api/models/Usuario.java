@@ -31,4 +31,20 @@ public class Usuario {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private RolUsuario rol;
+
+    /**
+     * Baja lógica: una cuenta inactiva no puede loguearse ni renovar su sesión, pero la
+     * fila se conserva para no perder a quién apunta `pagos.registrado_por` (ver V5).
+     */
+    @Column(nullable = false)
+    private boolean activo = true;
+
+    /**
+     * Alta de una cuenta nueva, que siempre nace activa. Existe para que los llamadores no
+     * tengan que repetir `true` en cada construcción, y para que `activo` no se pueda fijar
+     * por accidente desde donde no corresponde: solo lo mueven la baja y la reactivación.
+     */
+    public Usuario(Integer id, String nombre, String contrasena, RolUsuario rol) {
+        this(id, nombre, contrasena, rol, true);
+    }
 }

@@ -1,0 +1,17 @@
+-- Baja lógica de cuentas de staff.
+--
+-- Hasta acá, dar de baja a un empleado era un DELETE contra `usuarios`, y en la práctica
+-- fallaba siempre: `refresh_tokens` referencia a `usuarios` con una FK sin cascada y sus
+-- filas no se borran nunca (revocar solo marca `revocado = true`), así que cualquiera que
+-- se hubiera logueado alguna vez acumulaba filas que bloqueaban su borrado con un 409.
+--
+-- El arreglo no es borrar en cascada. V3 creó `pagos.registrado_por ... ON DELETE SET NULL`:
+-- si el borrado funcionara, daría de baja al empleado y de paso pondría en NULL el autor de
+-- todos los pagos que cobró, destruyendo la auditoría de caja que V3 existe para garantizar.
+-- Una baja no puede llevarse puesto el histórico de quién tocó plata.
+--
+-- Con `activo` la fila nunca se borra: `registrado_por` sigue apuntando a alguien y la baja
+-- pasa a ser un cambio de estado, igual que la de clientes (que ya era lógica).
+--
+-- DEFAULT TRUE deja activas todas las cuentas existentes, que es su estado real hoy.
+ALTER TABLE usuarios ADD COLUMN activo BOOLEAN NOT NULL DEFAULT TRUE;
