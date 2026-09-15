@@ -76,8 +76,32 @@ Público.
 
 ## Gaps conocidos
 
-Ninguno pendiente por el momento. El último (identidad de `/registro` basada
-en datos adivinables) se cerró el 2026-09-14, ver Historial.
+**Dar de baja un usuario de staff no funciona en la práctica** (detectado el
+2026-09-15, sin cerrar). La matriz dice que ADMIN puede `DELETE
+/api/v1/usuarios/{id}`, y el código lo permite, pero la operación falla contra
+la base: `refresh_tokens` referencia a `usuarios` con una FK sin borrado en
+cascada (`fk_refresh_tokens_usuario`, `V1__baseline.sql`), y las filas de token
+nunca se eliminan — `RefreshTokenService.revocar` solo marca `revocado = true`,
+y no hay ninguna tarea de limpieza. Así que cualquier empleado que se haya
+logueado alguna vez acumula filas que bloquean su borrado, incluso después de
+cerrar sesión. El resultado es un 409 por violación de integridad, no un
+mensaje que se entienda.
+
+Comprobado en la base local de desarrollo: el usuario `admin` tenía 11 filas
+acumuladas en `refresh_tokens`.
+
+Lo mismo le pasa a `DELETE /api/v1/clientes/{id}`, que además choca contra
+`pagos`. Ahí el bloqueo es deseable —no se borra historial de dinero— pero
+debería ser una regla de negocio explícita con su mensaje, no un 409 críptico.
+
+Al resolverlo hay que decidir entre dos caminos, y no son equivalentes: borrar
+en cascada desde la migración (la base se encarga, pero el borrado se vuelve
+silencioso) o borrar los tokens explícitamente en el service (más verboso,
+pero el que lee el código ve qué se lleva puesto una baja). Para clientes,
+probablemente convenga no borrar nunca y dar de baja lógicamente.
+
+El gap anterior (identidad de `/registro` basada en datos adivinables) se cerró
+el 2026-09-14, ver Historial.
 
 ## Historial de incidentes (para que no se repitan)
 
