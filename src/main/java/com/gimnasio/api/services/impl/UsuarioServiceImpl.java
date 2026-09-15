@@ -1,5 +1,6 @@
 package com.gimnasio.api.services.impl;
 
+import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Usuario;
 import com.gimnasio.api.models.enums.RolUsuario;
 import com.gimnasio.api.repositories.UsuarioRepository;
@@ -49,7 +50,7 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Transactional(readOnly = true)
     public Usuario buscarPorNombre(String nombre) {
         return usuarioRepository.findByNombre(nombre)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con el nombre: " + nombre));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado con el nombre: " + nombre));
     }
 
     @Override
@@ -71,7 +72,7 @@ public class UsuarioServiceImpl implements UsuarioService {
         }
 
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("No se puede eliminar: Usuario no encontrado con ID " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("No se puede eliminar: Usuario no encontrado con ID " + id));
 
         if (usuario.getRol() == RolUsuario.ADMIN && usuarioRepository.countByRol(RolUsuario.ADMIN) <= 1) {
             throw new IllegalArgumentException("No se puede eliminar el último administrador del sistema.");

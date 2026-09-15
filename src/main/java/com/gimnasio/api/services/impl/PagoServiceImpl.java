@@ -1,5 +1,6 @@
 package com.gimnasio.api.services.impl;
 
+import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.Pago;
 import com.gimnasio.api.models.Plan;
@@ -41,14 +42,14 @@ public class PagoServiceImpl implements PagoService {
     @Transactional(readOnly = true)
     public Pago obtenerPorId(Integer id) {
         return pagoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Pago no encontrado con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Pago no encontrado con ID: " + id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Pago> obtenerPagosPorCliente(Integer clienteId) {
         if (!clienteRepository.existsById(clienteId)) {
-            throw new RuntimeException("Cliente no encontrado con ID: " + clienteId);
+            throw new RecursoNoEncontradoException("Cliente no encontrado con ID: " + clienteId);
         }
         return pagoRepository.findByClienteId(clienteId);
     }
@@ -65,16 +66,16 @@ public class PagoServiceImpl implements PagoService {
                               Integer registradoPorId) {
         // 1. Validar que el cliente exista
         Cliente cliente = clienteRepository.findById(clienteId)
-                .orElseThrow(() -> new RuntimeException("No se puede registrar el pago: Cliente no encontrado con ID " + clienteId));
+                .orElseThrow(() -> new RecursoNoEncontradoException("No se puede registrar el pago: Cliente no encontrado con ID " + clienteId));
 
         // 2. Validar que el plan exista
         Plan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new RuntimeException("No se puede registrar el pago: Plan no encontrado con ID " + planId));
+                .orElseThrow(() -> new RecursoNoEncontradoException("No se puede registrar el pago: Plan no encontrado con ID " + planId));
 
         // 3. Identificar al staff que cobra. Llega desde el token (nunca del body), así
         // que si no existe es que el usuario fue eliminado con su sesión todavía viva.
         Usuario registradoPor = usuarioRepository.findById(registradoPorId)
-                .orElseThrow(() -> new RuntimeException("No se puede registrar el pago: Usuario no encontrado con ID " + registradoPorId));
+                .orElseThrow(() -> new RecursoNoEncontradoException("No se puede registrar el pago: Usuario no encontrado con ID " + registradoPorId));
 
         // 4. Establecer fecha de pago por defecto (hoy si no se especifica)
         LocalDate fechaEfectiva = (fechaPago != null) ? fechaPago : LocalDate.now();

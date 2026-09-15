@@ -1,5 +1,6 @@
 package com.gimnasio.api.services;
 
+import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.Pago;
 import com.gimnasio.api.models.Plan;
@@ -144,7 +145,7 @@ class PagoServiceTest {
     void registrarPago_cuandoClienteNoExiste_deberiaLanzarExcepcion() {
         when(clienteRepository.findById(99)).thenReturn(Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+        RecursoNoEncontradoException ex = assertThrows(RecursoNoEncontradoException.class, () -> {
             pagoService.registrarPago(99, 1, 32500.0, LocalDate.now(), 7);
         });
 
@@ -158,7 +159,7 @@ class PagoServiceTest {
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteInactivo));
         when(planRepository.findById(99)).thenReturn(Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+        RecursoNoEncontradoException ex = assertThrows(RecursoNoEncontradoException.class, () -> {
             pagoService.registrarPago(1, 99, 32500.0, LocalDate.now(), 7);
         });
 

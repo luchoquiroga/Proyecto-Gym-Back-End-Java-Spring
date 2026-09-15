@@ -1,6 +1,7 @@
 package com.gimnasio.api.config;
 
 import com.gimnasio.api.dto.ErrorResponse;
+import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -35,5 +36,30 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.FORBIDDEN, respuesta.getStatusCode());
         assertNotNull(respuesta.getBody());
+    }
+
+    @Test
+    @DisplayName("RecursoNoEncontradoException debe mapear a 404 con su propio mensaje")
+    void manejarRecursoNoEncontrado_deberiaDevolver404ConMensajePropio() {
+        RecursoNoEncontradoException ex = new RecursoNoEncontradoException("Cliente no encontrado con id: 42");
+
+        ResponseEntity<ErrorResponse> respuesta = handler.manejarRecursoNoEncontrado(ex);
+
+        assertEquals(HttpStatus.NOT_FOUND, respuesta.getStatusCode());
+        assertNotNull(respuesta.getBody());
+        assertEquals("Cliente no encontrado con id: 42", respuesta.getBody().getMensaje());
+    }
+
+    @Test
+    @DisplayName("Una RuntimeException inesperada (ej. NullPointerException) debe mapear a 500 sin filtrar el detalle interno")
+    void manejarErrorInesperado_conRuntimeExceptionInesperada_deberiaDevolver500SinFiltrarDetalleInterno() {
+        // "detalle interno de la base de datos" simula información que jamás debería llegar al cliente.
+        NullPointerException ex = new NullPointerException("detalle interno de la base de datos");
+
+        ResponseEntity<ErrorResponse> respuesta = handler.manejarErrorInesperado(ex);
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, respuesta.getStatusCode());
+        assertNotNull(respuesta.getBody());
+        assertFalse(respuesta.getBody().getMensaje().contains("detalle interno de la base de datos"));
     }
 }

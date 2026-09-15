@@ -36,7 +36,7 @@ class UsuarioServiceTest {
     @BeforeEach
     void setUp() {
         usuarioService = new UsuarioServiceImpl(usuarioRepository, passwordEncoder);
-        usuarioAdmin = new Usuario(1, "admin", passwordEncoder.encode("admin123"), RolUsuario.ADMIN);
+        usuarioAdmin = new Usuario(1, "admin", passwordEncoder.encode("admin123456789"), RolUsuario.ADMIN);
     }
 
     @Test
@@ -44,7 +44,7 @@ class UsuarioServiceTest {
     void autenticar_conCredencialesCorrectas_deberiaRetornarTrue() {
         when(usuarioRepository.findByNombre("admin")).thenReturn(Optional.of(usuarioAdmin));
 
-        boolean resultado = usuarioService.autenticar("admin", "admin123");
+        boolean resultado = usuarioService.autenticar("admin", "admin123456789");
 
         assertTrue(resultado);
         verify(usuarioRepository, times(1)).findByNombre("admin");

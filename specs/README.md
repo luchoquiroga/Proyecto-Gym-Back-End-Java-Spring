@@ -25,6 +25,8 @@ releer explícitamente toda la matriz.
 - **`ARQUITECTURA-APPS.md`** — qué app consume qué parte del API (escritorio,
   web, mobile) y qué audiencia tiene cada una. Es el complemento de producto
   de `AUTHZ-MATRIX.md`: la matriz dice quién *puede*, este dice quién *llama*.
+- **`DESPLIEGUE.md`** — qué configurar en Render y Neon antes del primer
+  arranque, y los modos de falla que no dan un error obvio.
 - **`TEMPLATE.md`** — la plantilla a copiar para especificar un feature nuevo
   antes de implementarlo.
 - **`CHECKLIST-NUEVO-ENDPOINT.md`** — el checklist paso a paso para agregar o

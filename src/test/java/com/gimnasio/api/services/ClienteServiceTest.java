@@ -3,6 +3,7 @@ package com.gimnasio.api.services;
 import com.gimnasio.api.dto.ClienteRequest;
 import com.gimnasio.api.dto.ClienteResponse;
 import com.gimnasio.api.dto.PaginaResponse;
+import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.Pago;
 import com.gimnasio.api.models.enums.EstadoCliente;
@@ -164,7 +165,7 @@ class ClienteServiceTest {
     void obtenerPorId_cuandoNoExiste_deberiaLanzarExcepcion() {
         when(clienteRepository.findById(99)).thenReturn(Optional.empty());
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+        RecursoNoEncontradoException exception = assertThrows(RecursoNoEncontradoException.class, () -> {
             clienteService.obtenerPorId(99);
         });
 

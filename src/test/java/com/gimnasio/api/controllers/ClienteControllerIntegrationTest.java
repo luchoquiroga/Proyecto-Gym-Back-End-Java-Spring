@@ -469,7 +469,7 @@ class ClienteControllerIntegrationTest {
     private String loguearComoAdmin() throws Exception {
         MvcResult resultado = mockMvc.perform(post("/api/v1/usuarios/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new LoginRequest("admin", "admin123"))))
+                        .content(objectMapper.writeValueAsString(new LoginRequest("admin", "admin123456789"))))
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(resultado.getResponse().getContentAsString()).get("accessToken").asText();

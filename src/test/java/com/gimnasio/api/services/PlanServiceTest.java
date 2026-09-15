@@ -77,7 +77,7 @@ class PlanServiceTest {
         when(planRepository.findById(1)).thenReturn(Optional.of(planMensual));
         doThrow(new DataIntegrityViolationException("FK violation")).when(planRepository).flush();
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
             planService.eliminar(1);
         });
 

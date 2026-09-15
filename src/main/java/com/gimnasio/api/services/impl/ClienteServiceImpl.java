@@ -3,6 +3,7 @@ package com.gimnasio.api.services.impl;
 import com.gimnasio.api.dto.ClienteRequest;
 import com.gimnasio.api.dto.ClienteResponse;
 import com.gimnasio.api.dto.PaginaResponse;
+import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.Pago;
 import com.gimnasio.api.models.enums.EstadoCliente;
@@ -48,7 +49,7 @@ public class ClienteServiceImpl implements ClienteService {
     @Transactional(readOnly = true)
     public Cliente obtenerPorId(Integer id) {
         return clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente no encontrado con id: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Cliente no encontrado con id: " + id));
     }
 
 
@@ -170,7 +171,7 @@ public class ClienteServiceImpl implements ClienteService {
     @Transactional(readOnly = true)
     public Cliente buscarPorEmail(String email) {
         return clienteRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Cliente no encontrado con el email: " + email));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Cliente no encontrado con el email: " + email));
     }
 
     @Override

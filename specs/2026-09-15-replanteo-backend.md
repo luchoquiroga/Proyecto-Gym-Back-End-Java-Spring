@@ -346,10 +346,22 @@ un subconjunto de ids. Sigue siendo una sola consulta sin importar el tamaño de
 página, así que no hay N+1; si el volumen crece, el arreglo es un método que
 reciba los ids de la página.
 
-**Fase 4 — Higiene** (A4, B2, B4, B5)
+**Fase 4 — Higiene** (A4, B2, B4, B5) — ✅ implementada el 2026-09-15
 Contraseña inicial por variable de entorno, `UNIQUE` en `usuarios.nombre`,
 severidad explícita en `EstadoCliente`, excepción propia de "no encontrado".
 Independientes entre sí, se pueden hacer sueltas.
+
+Lo que salió de acá y no estaba previsto:
+- El handler genérico devolvía **400 con el mensaje interno** para cualquier
+  `RuntimeException` — y `NullPointerException` es una `RuntimeException`, así
+  que un bug cualquiera filtraba detalle interno al cliente con un código de
+  estado que además mentía. Ahora el 404 sale del **tipo**
+  (`RecursoNoEncontradoException`), lo inesperado cae en 500 con mensaje
+  genérico, y el detalle se loguea del lado del servidor.
+- La guía operativa quedó en `DESPLIEGUE.md`: qué configurar en Render y Neon
+  antes del primer arranque, y las trampas (esquema vacío por el baseline de
+  Flyway, la URL de Neon que no es JDBC, el `JWT_SECRET` que no se decodifica
+  de base64 pese al nombre del parámetro).
 
 **Después:** con el contrato ya quieto, se escriben los tickets de UI (§10) y
 la spec de mobile.

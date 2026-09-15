@@ -1,6 +1,8 @@
 package com.gimnasio.api.config;
 
 import com.gimnasio.api.dto.ErrorResponse;
+import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,7 @@ import java.util.Map;
  * Interceptor global de excepciones para toda la API REST.
  * Convierte excepciones de Java en respuestas JSON estructuradas y con códigos HTTP correctos.
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -30,19 +33,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ErrorResponse> manejarRuntimeException(RuntimeException ex) {
-        // Si el mensaje contiene "no encontrado", devolvemos 404 NOT FOUND, sino 400 BAD REQUEST
-        HttpStatus status = ex.getMessage() != null && ex.getMessage().toLowerCase().contains("no encontrado")
-                ? HttpStatus.NOT_FOUND
-                : HttpStatus.BAD_REQUEST;
-
+    @ExceptionHandler(RecursoNoEncontradoException.class)
+    public ResponseEntity<ErrorResponse> manejarRecursoNoEncontrado(RecursoNoEncontradoException ex) {
+        // El mensaje es nuestro, redactado para el usuario final: exponerlo está bien.
         ErrorResponse error = new ErrorResponse(
-                status.value(),
+                HttpStatus.NOT_FOUND.value(),
                 ex.getMessage(),
                 LocalDateTime.now()
         );
-        return ResponseEntity.status(status).body(error);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -85,9 +84,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> manejarErrorInesperado(Exception ex) {
+        // El detalle completo queda solo en el log del servidor; al cliente nunca le llega
+        // el mensaje interno de la excepción (podría filtrar detalles de implementación).
+        log.error("Error inesperado en el servidor", ex);
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "Ocurrió un error inesperado en el servidor: " + ex.getMessage(),
+                "Ocurrió un error inesperado en el servidor",
                 LocalDateTime.now()
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);

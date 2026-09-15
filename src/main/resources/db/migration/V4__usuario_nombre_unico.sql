@@ -1,0 +1,12 @@
+-- `usuarios.nombre` es el identificador de login (UsuarioServiceImpl.autenticar busca por
+-- él), pero la tabla no tenía ninguna restricción: el único control de duplicados vivía en
+-- Java, en UsuarioServiceImpl.registrar, que consulta y después inserta. Entre esas dos
+-- operaciones entra otra alta simultánea con el mismo nombre, y quedan dos filas iguales.
+-- A partir de ahí `findByNombre` devuelve un resultado arbitrario y el login pasa a ser
+-- impredecible: alguien podría autenticarse contra la fila que no es la suya.
+--
+-- Si esta migración falla con una violación de unicidad, la base ya tiene nombres
+-- repetidos y hay que resolverlos a mano antes de reintentar (renombrar una cuenta de
+-- staff no es algo que deba decidir una migración sola):
+--     SELECT nombre, COUNT(*) FROM usuarios GROUP BY nombre HAVING COUNT(*) > 1;
+ALTER TABLE usuarios ADD CONSTRAINT uk_usuarios_nombre UNIQUE (nombre);

@@ -41,8 +41,10 @@ public class VencimientoServiceImpl implements VencimientoService {
             if (estadoCalculado != null) {
                 Cliente cliente = ultimoPago.getCliente();
                 // Solo se escala el estado (ACTIVO -> MOROSO -> INACTIVO), nunca se revierte
-                // automáticamente: evita reactivar clientes o pisar una baja manual.
-                if (estadoCalculado.ordinal() > cliente.getEstado().ordinal()) {
+                // automáticamente: evita reactivar clientes o pisar una baja manual. La
+                // comparación usa la severidad declarada en el enum y no su ordinal, para
+                // que agregar un estado nuevo en el medio no cambie esta regla en silencio.
+                if (estadoCalculado.esPeorQue(cliente.getEstado())) {
                     cliente.setEstado(estadoCalculado);
                     clienteRepository.save(cliente);
                 }
