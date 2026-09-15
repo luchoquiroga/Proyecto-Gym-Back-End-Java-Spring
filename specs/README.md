@@ -30,6 +30,9 @@ releer explícitamente toda la matriz.
 - **`CHECKLIST-NUEVO-ENDPOINT.md`** — el checklist paso a paso para agregar o
   modificar un endpoint/rol. Es la fuente única que referencian los skills de
   los dos agentes que se usan en este repo (ver abajo).
+- **`2026-09-15-replanteo-backend.md`** — el replanteo del backend antes de
+  escribir web y mobile: quiénes intervienen, qué puede hacer cada uno, los
+  huecos encontrados al revisar el código y el plan por fases para cerrarlos.
 - Un archivo por feature grande (ej. `2026-09-cliente-portal-web.md`) para los
   que ya se escriba spec de acá en adelante.
 
