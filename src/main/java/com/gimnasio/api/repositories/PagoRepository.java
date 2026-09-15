@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PagoRepository extends JpaRepository<Pago, Integer> {
@@ -16,6 +17,11 @@ public interface PagoRepository extends JpaRepository<Pago, Integer> {
 
     // Permite buscar pagos por coincidencia parcial de nombre de cliente (case-insensitive)
     List<Pago> findByClienteNombreContainingIgnoreCase(String nombre);
+
+    // Último pago de UN solo cliente (mayor fecha de vencimiento). Pensado para los casos
+    // donde solo hace falta la fecha de vencimiento vigente de un socio puntual (GET /clientes/{id}
+    // y /clientes/buscar): una sola fila, sin necesidad de traer ni mapear el resto de la tabla.
+    Optional<Pago> findTopByClienteIdOrderByFechaVencimientoDesc(Integer clienteId);
 
     // Trae el pago más reciente (mayor fecha de vencimiento) de cada cliente en una sola consulta
     @Query("SELECT p FROM Pago p WHERE p.fechaVencimiento = " +

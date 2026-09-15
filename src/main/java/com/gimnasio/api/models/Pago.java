@@ -1,5 +1,6 @@
 package com.gimnasio.api.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -36,4 +37,23 @@ public class Pago {
 
     @Column(name = "fecha_vencimiento", nullable = false)
     private LocalDate fechaVencimiento;
+
+    /**
+     * Usuario de staff que registró el cobro. Es el rastro de auditoría de la caja:
+     * sin esto, un faltante o un pago cargado de favor no son atribuibles a nadie.
+     * Se toma siempre del token del que llama, nunca del body de la request.
+     *
+     * Nullable porque los pagos anteriores a la migración V3 no tienen autor conocido,
+     * y porque al eliminar un usuario de staff la FK lo pone en NULL en vez de borrar
+     * el pago.
+     *
+     * @JsonIgnore porque hoy los controllers serializan la entidad directamente y
+     * GET /pagos/{id} lo puede leer el propio CLIENTE dueño del pago: no hay motivo
+     * para contarle a un socio qué empleado le cobró. Cuando la Fase 3 del replanteo
+     * introduzca DTOs de response, este dato se expone en el de ADMIN.
+     */
+    @JsonIgnore
+    @ManyToOne
+    @JoinColumn(name = "registrado_por")
+    private Usuario registradoPor;
 }

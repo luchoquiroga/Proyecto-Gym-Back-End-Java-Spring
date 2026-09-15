@@ -1,5 +1,6 @@
 package com.gimnasio.api.services.impl;
 
+import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Plan;
 import com.gimnasio.api.repositories.PlanRepository;
 import com.gimnasio.api.services.PlanService;
@@ -29,14 +30,13 @@ public class PlanServiceImpl implements PlanService {
     @Transactional(readOnly = true)
     public Plan obtenerPorId(Integer id) {
         return planRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Plan no encontrado con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Plan no encontrado con ID: " + id));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Plan buscarPorNombre(String nombre) {
-        return planRepository.findByNombre(nombre)
-                .orElseThrow(() -> new RuntimeException("Plan no encontrado con el nombre: " + nombre));
+    public List<Plan> buscarPorNombre(String nombre) {
+        return planRepository.findByNombreContainingIgnoreCase(nombre);
     }
 
     @Override
@@ -69,7 +69,9 @@ public class PlanServiceImpl implements PlanService {
             planRepository.delete(plan);
             planRepository.flush(); // Fuerza la ejecución del DELETE para capturar violación de FK de inmediato
         } catch (DataIntegrityViolationException e) {
-            throw new RuntimeException("No se puede eliminar el plan '" + plan.getNombre() + 
+            // Regla de negocio violada (el plan tiene pagos asociados), no un recurso
+            // ausente: IllegalArgumentException, que el handler mapea a 400.
+            throw new IllegalArgumentException("No se puede eliminar el plan '" + plan.getNombre() +
                     "' porque ya existen pagos registrados asociados a él.");
         }
     }

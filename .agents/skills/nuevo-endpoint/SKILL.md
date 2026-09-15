@@ -6,9 +6,9 @@ description: Checklist obligatoria para agregar o modificar un endpoint en este 
 # Nuevo endpoint / cambio de autorización
 
 El checklist completo vive en `specs/CHECKLIST-NUEVO-ENDPOINT.md` — es la
-fuente única, compartida con el skill equivalente de Antigravity/Gemini
-(`.agents/skills/nuevo-endpoint/SKILL.md`). Este archivo es solo el puntero
-que hace que Claude Code lo cargue en el momento correcto.
+fuente única, compartida con el skill equivalente de Claude Code
+(`.claude/skills/nuevo-endpoint/SKILL.md`). Este archivo es solo el puntero
+que hace que el agente lo cargue en el momento correcto.
 
 **Leé `specs/CHECKLIST-NUEVO-ENDPOINT.md` completo ahora y seguí sus pasos.**
 

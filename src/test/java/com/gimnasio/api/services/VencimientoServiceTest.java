@@ -38,7 +38,7 @@ class VencimientoServiceTest {
 
     private Pago pagoConVencimientoHace(int dias, Cliente cliente) {
         LocalDate fechaVencimiento = LocalDate.now().minusDays(dias);
-        return new Pago(1, cliente, planMensual, 32500.0, fechaVencimiento.minusDays(30), fechaVencimiento);
+        return new Pago(1, cliente, planMensual, 32500.0, fechaVencimiento.minusDays(30), fechaVencimiento, null);
     }
 
     @Test

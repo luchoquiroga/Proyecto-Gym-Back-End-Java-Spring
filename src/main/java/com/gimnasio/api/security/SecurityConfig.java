@@ -62,6 +62,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Público
                         .requestMatchers("/ping").permitAll()
+                        // Documentación OpenAPI/Swagger: solo describe el contrato de la API,
+                        // no expone datos ni permite ninguna acción por sí misma.
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/v1/usuarios/login").permitAll()
                         .requestMatchers("/api/v1/usuarios/refresh").permitAll()
                         .requestMatchers("/api/v1/usuarios/logout").permitAll()
@@ -77,12 +80,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/planes").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/planes/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/planes/**").hasRole("ADMIN")
-                        // ADMIN o GERENCIA: listados completos de clientes/pagos (un Cliente solo
+                        // ADMIN o GERENCIA: listados completos de clientes (un Cliente solo
                         // puede ver su propio registro, chequeo que hacen los controllers)
                         .requestMatchers(HttpMethod.GET, "/api/v1/clientes", "/api/v1/clientes/buscar")
                                 .hasAnyRole("ADMIN", "GERENCIA")
+                        // Solo ADMIN: GERENCIA opera socios y cobra, pero no ve datos monetarios;
+                        // el listado y la búsqueda de pagos quedan reservados a ADMIN (el propio
+                        // Cliente puede ver SUS pagos vía GET /{id} y /cliente/{clienteId}, que
+                        // resuelve el controller con un chequeo de ownership, no una regla acá)
                         .requestMatchers(HttpMethod.GET, "/api/v1/pagos", "/api/v1/pagos/buscar")
-                                .hasAnyRole("ADMIN", "GERENCIA")
+                                .hasRole("ADMIN")
                         // ADMIN o GERENCIA: registrar un pago es una operación de caja, no
                         // self-service (un Cliente no puede registrarse pagos a sí mismo ni a otros)
                         .requestMatchers(HttpMethod.POST, "/api/v1/pagos").hasAnyRole("ADMIN", "GERENCIA")

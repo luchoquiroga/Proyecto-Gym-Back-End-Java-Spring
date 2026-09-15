@@ -5,6 +5,7 @@ import com.gimnasio.api.dto.LoginRequest;
 import com.gimnasio.api.dto.LoginResponse;
 import com.gimnasio.api.dto.MensajeResponse;
 import com.gimnasio.api.dto.RefreshResponse;
+import com.gimnasio.api.dto.UsuarioRequest;
 import com.gimnasio.api.dto.UsuarioResponse;
 import com.gimnasio.api.models.Usuario;
 import com.gimnasio.api.security.JwtService;
@@ -108,18 +109,20 @@ public class UsuarioController {
     }
 
     @PostMapping
-    public ResponseEntity<Usuario> registrar(@RequestBody Usuario usuario) {
+    public ResponseEntity<UsuarioResponse> registrar(@Valid @RequestBody UsuarioRequest request) {
+        // Sin id: el DTO no lo expone, así que no hay forma de pisar otra fila desde el body.
+        Usuario usuario = new Usuario(null, request.getNombre(), request.getContrasena(), request.getRol());
         Usuario nuevoUsuario = usuarioService.registrar(usuario);
-        return ResponseEntity.status(HttpStatus.CREATED).body(nuevoUsuario);
+        return ResponseEntity.status(HttpStatus.CREATED).body(UsuarioResponse.desde(nuevoUsuario));
     }
 
     @PutMapping("/cambiar-contrasena")
-    public ResponseEntity<Usuario> cambiarContrasena(@Valid @RequestBody CambioContrasenaRequest request) {
+    public ResponseEntity<UsuarioResponse> cambiarContrasena(@Valid @RequestBody CambioContrasenaRequest request) {
         Usuario usuarioActualizado = usuarioService.actualizarContrasena(
                 request.getNombre(),
                 request.getNuevaContrasena()
         );
-        return ResponseEntity.ok(usuarioActualizado);
+        return ResponseEntity.ok(UsuarioResponse.desde(usuarioActualizado));
     }
 
     @DeleteMapping("/{id}")

@@ -2,9 +2,14 @@ package com.gimnasio.api.controllers;
 
 import com.gimnasio.api.dto.ClienteLoginRequest;
 import com.gimnasio.api.dto.ClienteRegistroRequest;
+import com.gimnasio.api.dto.LoginRequest;
 import com.gimnasio.api.models.Cliente;
+import com.gimnasio.api.models.Pago;
+import com.gimnasio.api.models.Plan;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.repositories.ClienteRepository;
+import com.gimnasio.api.repositories.PagoRepository;
+import com.gimnasio.api.repositories.PlanRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +23,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -42,6 +49,12 @@ class ClienteControllerIntegrationTest {
 
     @Autowired
     private ClienteRepository clienteRepository;
+
+    @Autowired
+    private PagoRepository pagoRepository;
+
+    @Autowired
+    private PlanRepository planRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -272,6 +285,194 @@ class ClienteControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/clientes/" + otroCliente.getId()).header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /clientes/{id} de un socio con un pago vigente devuelve su fechaVencimiento, sin exponer montos ni contraseña")
+    void obtenerPorId_conPagoVigente_deberiaDevolverFechaVencimientoSinDatosMonetarios() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Rocio", "Alonso", "555-C14", null, null, EstadoCliente.ACTIVO, null));
+        Plan plan = planRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("No hay planes sembrados por DataInitializer"));
+        LocalDate fechaVencimientoEsperada = LocalDate.now().plusDays(plan.getDuracion());
+
+        Pago pago = new Pago();
+        pago.setCliente(cliente);
+        pago.setPlan(plan);
+        pago.setMontoAbonado(plan.getPrecio());
+        pago.setFechaPago(LocalDate.now());
+        pago.setFechaVencimiento(fechaVencimientoEsperada);
+        pagoRepository.save(pago);
+
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechaVencimiento").value(fechaVencimientoEsperada.toString()))
+                .andExpect(jsonPath("$.montoAbonado").doesNotExist())
+                .andExpect(jsonPath("$.contrasena").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("GET /clientes/{id} de un socio que nunca pagó devuelve fechaVencimiento null")
+    void obtenerPorId_sinPagos_deberiaDevolverFechaVencimientoNull() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Federico", "Suarez", "555-C15", null, null, EstadoCliente.INACTIVO, null));
+
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechaVencimiento").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("POST /clientes con id y estado en el body debe ignorarlos: el socio nuevo queda con id propio e INACTIVO")
+    void crear_conIdYEstadoEnElBody_deberiaIgnorarlos() throws Exception {
+        String tokenAdmin = loguearComoAdmin();
+
+        // ClienteRequest no tiene campos "id" ni "estado", así que Jackson simplemente
+        // ignora estas dos claves de más del JSON en vez de bindearlas (a diferencia de
+        // la versión vieja, que recibía la entidad Cliente completa y sí las aceptaba).
+        String cuerpoConCamposDeMas = """
+                {
+                  "nombre": "Intruso",
+                  "apellido": "Test",
+                  "telefono": "555-X1",
+                  "id": 99,
+                  "estado": "ACTIVO"
+                }
+                """;
+
+        MvcResult resultado = mockMvc.perform(post("/api/v1/clientes")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoConCamposDeMas))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.estado").value("INACTIVO"))
+                .andReturn();
+
+        Integer idGenerado = objectMapper.readTree(resultado.getResponse().getContentAsString())
+                .get("id").asInt();
+        assertNotEquals(99, idGenerado);
+
+        Cliente guardado = clienteRepository.findById(idGenerado).orElseThrow();
+        assertEquals(EstadoCliente.INACTIVO, guardado.getEstado());
+    }
+
+    @Test
+    @DisplayName("POST /clientes sin nombre debe devolver 400 por validación")
+    void crear_sinNombre_deberiaDevolver400() throws Exception {
+        String tokenAdmin = loguearComoAdmin();
+
+        String cuerpoInvalido = """
+                {
+                  "apellido": "SinNombre"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/clientes")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpoInvalido))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.nombre").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("GET /clientes debe devolver la forma paginada")
+    void listarClientes_deberiaDevolverFormaPaginada() throws Exception {
+        clienteRepository.save(
+                new Cliente(null, "Marisa", "Ortega", "555-P1", null, null, EstadoCliente.ACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/clientes").header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido").isArray())
+                .andExpect(jsonPath("$.pagina").value(0))
+                .andExpect(jsonPath("$.tamanio").value(20))
+                .andExpect(jsonPath("$.totalElementos").isNumber());
+    }
+
+    @Test
+    @DisplayName("PUT /clientes/{id} debe devolver un ClienteResponse sin contraseña ni código de activación")
+    void actualizar_deberiaDevolverClienteResponseSinCamposSensibles() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Hernan", "Diaz", "555-P2", null, null, EstadoCliente.INACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        String cuerpo = """
+                {
+                  "nombre": "Hernan Actualizado",
+                  "apellido": "Diaz",
+                  "telefono": "555-P2-NUEVO"
+                }
+                """;
+
+        mockMvc.perform(put("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpo))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombre").value("Hernan Actualizado"))
+                .andExpect(jsonPath("$.telefono").value("555-P2-NUEVO"))
+                .andExpect(jsonPath("$.contrasena").doesNotExist())
+                .andExpect(jsonPath("$.codigoActivacion").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("PATCH /clientes/{id}/estado debe devolver un ClienteResponse sin contraseña ni código de activación")
+    void cambiarEstado_deberiaDevolverClienteResponseSinCamposSensibles() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Yamila", "Ruiz", "555-P3", null, null, EstadoCliente.INACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(patch("/api/v1/clientes/" + cliente.getId() + "/estado")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .param("nuevoEstado", "ACTIVO"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("ACTIVO"))
+                .andExpect(jsonPath("$.contrasena").doesNotExist())
+                .andExpect(jsonPath("$.codigoActivacion").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("GET /clientes/buscar sin coincidencias debe devolver una lista vacía, no un error")
+    void buscarPorNombre_sinCoincidencias_deberiaDevolverListaVacia() throws Exception {
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/clientes/buscar")
+                        .param("nombre", "NadieConEsteNombre")
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    @DisplayName("GET /clientes/buscar con coincidencia debe devolver una lista con ese cliente")
+    void buscarPorNombre_conCoincidencia_deberiaDevolverListaConElCliente() throws Exception {
+        clienteRepository.save(
+                new Cliente(null, "NombreUnicoBusqueda", "Apellido", "555-P4", null, null, EstadoCliente.INACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/clientes/buscar")
+                        .param("nombre", "NombreUnicoBusqueda")
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].nombre").value("NombreUnicoBusqueda"))
+                .andExpect(jsonPath("$[0].contrasena").doesNotExist());
+    }
+
+    private String loguearComoAdmin() throws Exception {
+        MvcResult resultado = mockMvc.perform(post("/api/v1/usuarios/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("admin", "admin123456789"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(resultado.getResponse().getContentAsString()).get("accessToken").asText();
     }
 
     private void registrarCliente(String nombre, String apellido, String telefono,
