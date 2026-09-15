@@ -231,7 +231,7 @@ public class ClienteServiceImpl implements ClienteService {
     // vigente: acá no hace falta traer la tabla entera con findUltimoPagoPorCadaCliente(),
     // alcanza con la última fila de ese socio.
     private Pago ultimoPago(Integer clienteId) {
-        return pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(clienteId)
+        return pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(clienteId)
                 .orElse(null);
     }
 }

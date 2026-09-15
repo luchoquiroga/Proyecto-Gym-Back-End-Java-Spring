@@ -179,7 +179,7 @@ class ClienteServiceTest {
     void actualizar_deberiaDevolverClienteResponseActualizado() {
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clientePrueba));
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
 
         ClienteRequest actualizacion = new ClienteRequest("Carlos Nuevo", "Gómez", "999999999", null, null);
         ClienteResponse resultado = clienteService.actualizar(1, actualizacion);
@@ -193,7 +193,7 @@ class ClienteServiceTest {
     void cambiarEstado_deberiaDevolverClienteResponseConEstadoNuevo() {
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clientePrueba));
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
 
         ClienteResponse resultado = clienteService.cambiarEstado(1, EstadoCliente.MOROSO);
 
@@ -305,7 +305,7 @@ class ClienteServiceTest {
     void obtenerRespuestaPorId_conVariosPagos_deberiaUsarFechaDelUltimoPago() {
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clientePrueba));
 
-        // El método derivado (findTopByClienteIdOrderByFechaVencimientoDesc) ya trae, de
+        // El método derivado (findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc) ya trae, de
         // todos los pagos del cliente, el de mayor fecha de vencimiento: acá simulamos que
         // el cliente tiene un pago viejo y este es el más nuevo, para comprobar que el
         // service expone esta fecha y no la de un pago anterior.
@@ -316,7 +316,7 @@ class ClienteServiceTest {
         // Con plan, como en la base: pagos.plan_id es NOT NULL. De paso sirve para
         // comprobar que el plan vigente del socio sale del último pago.
         ultimoPago.setPlan(new Plan(7, "Pase Mensual", 32500.0, 30));
-        when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(1)).thenReturn(Optional.of(ultimoPago));
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1)).thenReturn(Optional.of(ultimoPago));
 
         ClienteResponse resultado = clienteService.obtenerRespuestaPorId(1);
 
@@ -330,7 +330,7 @@ class ClienteServiceTest {
     @DisplayName("obtenerRespuestaPorId de un cliente sin pagos debe devolver fechaVencimiento null")
     void obtenerRespuestaPorId_sinPagos_deberiaDevolverFechaVencimientoNull() {
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clientePrueba));
-        when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
 
         ClienteResponse resultado = clienteService.obtenerRespuestaPorId(1);
 
@@ -431,7 +431,7 @@ class ClienteServiceTest {
     @DisplayName("buscarPorNombreConVencimiento con coincidencia debe devolver una lista con ese cliente")
     void buscarPorNombreConVencimiento_conCoincidencia_deberiaDevolverListaConElCliente() {
         when(clienteRepository.findByNombreContainingIgnoreCase("Carlos")).thenReturn(List.of(clientePrueba));
-        when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
 
         List<ClienteResponse> resultado = clienteService.buscarPorNombreConVencimiento("Carlos");
 
@@ -447,8 +447,8 @@ class ClienteServiceTest {
         Cliente otroCarlos = new Cliente(2, "Carla", "Gomez", "555", null, null, EstadoCliente.ACTIVO, null);
         when(clienteRepository.findByNombreContainingIgnoreCase("car"))
                 .thenReturn(List.of(clientePrueba, otroCarlos));
-        when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
-        when(pagoRepository.findTopByClienteIdOrderByFechaVencimientoDesc(2)).thenReturn(Optional.empty());
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(2)).thenReturn(Optional.empty());
 
         List<ClienteResponse> resultado = clienteService.buscarPorNombreConVencimiento("car");
 

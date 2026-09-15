@@ -11,6 +11,7 @@ import com.gimnasio.api.repositories.PagoRepository;
 import com.gimnasio.api.repositories.PlanRepository;
 import com.gimnasio.api.repositories.UsuarioRepository;
 import com.gimnasio.api.services.PagoService;
+import com.gimnasio.api.services.VencimientoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -31,6 +33,9 @@ public class PagoServiceImpl implements PagoService {
     private final ClienteRepository clienteRepository;
     private final PlanRepository planRepository;
     private final UsuarioRepository usuarioRepository;
+    // Anular el último pago de un socio puede dejarlo con el vencimiento pasado: el estado
+    // se recalcula con la misma regla que usa la corrida diaria, en vez de reescribirla acá.
+    private final VencimientoService vencimientoService;
 
     @Override
     @Transactional(readOnly = true)
@@ -49,6 +54,33 @@ public class PagoServiceImpl implements PagoService {
             return pagoRepository.findByFechaPagoLessThanEqual(hasta, pageable);
         }
         return pagoRepository.findAll(pageable);
+    }
+
+    @Override
+    @Transactional
+    public Pago anular(Integer id, String motivo, Integer anuladoPorId) {
+        Pago pago = obtenerPorId(id);
+
+        if (pago.isAnulado()) {
+            // 400 explícito y no una anulación silenciosa: volver a anular casi siempre
+            // significa que el operador está mirando una pantalla desactualizada, y
+            // pisar el motivo y el autor originales borraría la auditoría del primero.
+            throw new IllegalArgumentException("El pago " + id + " ya estaba anulado.");
+        }
+
+        Usuario anuladoPor = anuladoPorId == null ? null
+                : usuarioRepository.findById(anuladoPorId).orElse(null);
+
+        pago.setAnulado(true);
+        pago.setAnuladoPor(anuladoPor);
+        pago.setFechaAnulacion(LocalDateTime.now());
+        pago.setMotivoAnulacion(motivo);
+        Pago anulado = pagoRepository.save(pago);
+
+        // El socio puede haber quedado ACTIVO apoyado en el pago que se acaba de anular.
+        vencimientoService.recalcularEstadoDe(pago.getCliente().getId());
+
+        return anulado;
     }
 
     @Override

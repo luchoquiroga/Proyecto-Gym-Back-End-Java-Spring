@@ -33,7 +33,7 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDate fin = periodo.atEndOfMonth();
 
         double totalGanancias = pagoRepository.sumarMontoAbonadoEntre(inicio, fin);
-        long cantidadPagos = pagoRepository.countByFechaPagoBetween(inicio, fin);
+        long cantidadPagos = pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(inicio, fin);
 
         return new GananciasMensualesResponse(anioEfectivo, mesEfectivo, totalGanancias, cantidadPagos);
     }

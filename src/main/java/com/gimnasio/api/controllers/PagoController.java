@@ -1,5 +1,6 @@
 package com.gimnasio.api.controllers;
 
+import com.gimnasio.api.dto.AnulacionPagoRequest;
 import com.gimnasio.api.dto.PagoRequest;
 import com.gimnasio.api.dto.PagoResponse;
 import com.gimnasio.api.dto.PaginaResponse;
@@ -81,6 +82,20 @@ public class PagoController {
         return ResponseEntity.ok(pagoService.buscarPagosPorNombreCliente(nombreCliente).stream()
                 .map(PagoResponse::desde)
                 .toList());
+    }
+
+    /**
+     * Anula un pago cargado por error (solo ADMIN, ver SecurityConfig). Es POST y no DELETE
+     * a propósito: no se borra nada, se agrega un hecho. Tampoco existe un PUT para editar
+     * un pago: corregir un importe es anular este y registrar el correcto.
+     */
+    @PostMapping("/{id}/anulacion")
+    public ResponseEntity<PagoResponse> anular(@PathVariable Integer id,
+                                               @Valid @RequestBody AnulacionPagoRequest request,
+                                               @AuthenticationPrincipal AuthPrincipal principal) {
+        // Quién anula sale del token, igual que el autor del cobro: si viniera del body,
+        // el rastro de quién sacó plata del sistema no valdría nada.
+        return ResponseEntity.ok(PagoResponse.desde(pagoService.anular(id, request.getMotivo(), principal.id())));
     }
 
     @PostMapping

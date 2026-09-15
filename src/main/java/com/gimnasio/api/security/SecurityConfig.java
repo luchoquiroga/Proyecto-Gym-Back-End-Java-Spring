@@ -103,6 +103,11 @@ public class SecurityConfig {
                         // resuelve el controller con un chequeo de ownership, no una regla acá)
                         .requestMatchers(HttpMethod.GET, "/api/v1/pagos", "/api/v1/pagos/buscar")
                                 .hasRole("ADMIN")
+                        // Solo ADMIN: anular un pago es tocar caja ya registrada. GERENCIA cobra,
+                        // y si se equivoca avisa. Va ANTES de la regla de POST /api/v1/pagos porque
+                        // esa es de path exacto y esta es un subpath, pero el orden se deja
+                        // explícito igual para que no dependa de ese detalle.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/pagos/*/anulacion").hasRole("ADMIN")
                         // ADMIN o GERENCIA: registrar un pago es una operación de caja, no
                         // self-service (un Cliente no puede registrarse pagos a sí mismo ni a otros)
                         .requestMatchers(HttpMethod.POST, "/api/v1/pagos").hasAnyRole("ADMIN", "GERENCIA")

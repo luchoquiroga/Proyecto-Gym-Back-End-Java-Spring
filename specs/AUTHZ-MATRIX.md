@@ -50,6 +50,7 @@ Roles/principales que existen hoy:
 | GET | `/buscar` | ADMIN | 2026-09-15: sacado a GERENCIA |
 | GET | `/cliente/{clienteId}` | ADMIN, o el propio CLIENTE dueño | chequeo en `PagoController.obtenerPagosPorCliente`; 2026-09-15 dejó de aceptar GERENCIA |
 | GET | `/{id}` | ADMIN, o el propio CLIENTE dueño del pago | agregado 2026-09-14, antes cualquier autenticado; chequeo en `PagoController.obtenerPorId` vía `pago.getCliente().getId()`; 2026-09-15 dejó de aceptar GERENCIA |
+| POST | `/{id}/anulacion` | ADMIN | agregado 2026-09-15 (Fase 6): marca el pago como anulado con motivo obligatorio, quien anula sale del token. **No borra la fila y no existe editar un pago**: corregir un importe es anular y volver a cobrar. GERENCIA cobra pero no toca caja ya registrada |
 | POST | `` (registrar pago) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía registrarse pagos a sí mismo o a otros). Desde 2026-09-15 guarda `registrado_por` tomado del token (nunca del body) y rechaza montos menores al precio del plan |
 
 ## `/api/v1/planes`

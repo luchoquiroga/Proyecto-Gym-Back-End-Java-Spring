@@ -1,7 +1,7 @@
 # Spec: Fase 6 — lo que el backend le debe a la web
 
 Fecha: 2026-09-15
-Estado: borrador
+Estado: implementado
 
 ## 1. Qué resuelve
 
@@ -168,9 +168,22 @@ cuadran.
 
 ## 6. Checklist antes de mergear
 
-- [ ] `AUTHZ-MATRIX.md` actualizado (3 filas nuevas + la restricción de `/estado`).
-- [ ] `ARQUITECTURA-APPS.md` §4 actualizado con las filas de consumo.
-- [ ] Tests corridos y en verde.
-- [ ] `/security-review` corrido: se tocan `SecurityConfig`, controllers y DTOs
-      de request.
-- [ ] Ninguna migración ya aplicada fue editada (`V6` es nueva).
+- [x] `AUTHZ-MATRIX.md` actualizado (4 filas nuevas + la restricción de `/estado`).
+- [ ] `ARQUITECTURA-APPS.md` §4: pendiente, es la tabla de consumo por app y se
+      actualiza junto con los tickets de la web.
+- [x] Tests corridos y en verde (145; 7 nuevos solo para la anulación).
+- [x] `/security-review` corrido sobre las dos mitades de la fase.
+- [x] Ninguna migración ya aplicada fue editada (`V6` es nueva).
+
+**Decisiones tomadas al implementar, que la spec dejaba abiertas:**
+- Anular un pago ya anulado devuelve **400**, no es idempotente. Volver a
+  anular casi siempre significa que el operador está mirando una pantalla
+  desactualizada, y pisar el motivo y el autor originales borraría la auditoría
+  del primero.
+- La anulación **recalcula el estado del socio en el momento**, con la misma
+  regla y los mismos umbrales que la corrida diaria (`VencimientoService.recalcularEstadoDe`,
+  extraído para no reescribirlos). Sin eso, anular el último pago dejaba al
+  socio ACTIVO apoyado en un pago que ya no cuenta hasta la próxima corrida.
+- `findUltimoPagoPorCadaCliente` filtra los anulados **en los dos niveles** de la
+  consulta. Filtrarlos solo afuera hacía que un pago anulado con la fecha más
+  alta ganara el `MAX` interno y el socio se quedara sin vencimiento.

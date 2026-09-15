@@ -29,6 +29,8 @@ import java.time.LocalDate;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -320,6 +322,174 @@ class PagoControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.planVigente").doesNotExist())
                 .andExpect(jsonPath("$.fechaVencimiento").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("Anular un pago lo marca pero no lo borra, y sigue apareciendo en el listado")
+    void anularPago_conTokenAdmin_deberiaMarcarloSinBorrarlo() throws Exception {
+        Cliente cliente = crearClienteConPago("Tomas", "Vera", "555-P30", null, null);
+        Integer idPago = pagoRepository.findByClienteId(cliente.getId()).get(0).getId();
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(post("/api/v1/pagos/" + idPago + "/anulacion")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(motivo("Cargado dos veces por error")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.anulado").value(true));
+
+        // La fila se conserva: esconder o borrar el pago anulado seria volver al borrado
+        // por la ventana, que es justo lo que la anulacion evita.
+        Pago enLaBase = pagoRepository.findById(idPago).orElseThrow();
+        assertTrue(enLaBase.isAnulado());
+        assertEquals("Cargado dos veces por error", enLaBase.getMotivoAnulacion());
+        assertNotNull(enLaBase.getFechaAnulacion());
+        assertEquals("admin", enLaBase.getAnuladoPor().getNombre());
+
+        mockMvc.perform(get("/api/v1/pagos")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .param("desde", LocalDate.now().toString())
+                        .param("hasta", LocalDate.now().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido[?(@.id == " + idPago + ")].anulado").value(true));
+    }
+
+    @Test
+    @DisplayName("GERENCIA no puede anular un pago: cobra, pero no toca la caja ya registrada")
+    void anularPago_conTokenGerencia_deberiaDevolver403() throws Exception {
+        Cliente cliente = crearClienteConPago("Nadia", "Rojas", "555-P31", null, null);
+        Integer idPago = pagoRepository.findByClienteId(cliente.getId()).get(0).getId();
+        String tokenGerencia = loguearComoGerencia();
+
+        mockMvc.perform(post("/api/v1/pagos/" + idPago + "/anulacion")
+                        .header("Authorization", "Bearer " + tokenGerencia)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(motivo("me equivoque")))
+                .andExpect(status().isForbidden());
+
+        assertFalse(pagoRepository.findById(idPago).orElseThrow().isAnulado());
+    }
+
+    @Test
+    @DisplayName("Anular un pago ya anulado devuelve 400 y no pisa el motivo original")
+    void anularPago_dosVeces_deberiaDevolver400() throws Exception {
+        Cliente cliente = crearClienteConPago("Ciro", "Vega", "555-P32", null, null);
+        Integer idPago = pagoRepository.findByClienteId(cliente.getId()).get(0).getId();
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(post("/api/v1/pagos/" + idPago + "/anulacion")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(motivo("motivo original")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/pagos/" + idPago + "/anulacion")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(motivo("segundo intento")))
+                .andExpect(status().isBadRequest());
+
+        assertEquals("motivo original", pagoRepository.findById(idPago).orElseThrow().getMotivoAnulacion());
+    }
+
+    @Test
+    @DisplayName("Anular sin motivo devuelve 400: un pago anulado sin explicacion no es auditoria")
+    void anularPago_sinMotivo_deberiaDevolver400() throws Exception {
+        Cliente cliente = crearClienteConPago("Sol", "Ibarra", "555-P33", null, null);
+        Integer idPago = pagoRepository.findByClienteId(cliente.getId()).get(0).getId();
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(post("/api/v1/pagos/" + idPago + "/anulacion")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(motivo("   ")))
+                .andExpect(status().isBadRequest());
+
+        assertFalse(pagoRepository.findById(idPago).orElseThrow().isAnulado());
+    }
+
+    @Test
+    @DisplayName("Un pago anulado deja de sumar a las ganancias del mes")
+    void anularPago_deberiaDescontarDeLasGananciasDelMes() throws Exception {
+        Cliente cliente = crearClienteConPago("Gaston", "Mora", "555-P34", null, null);
+        Pago pago = pagoRepository.findByClienteId(cliente.getId()).get(0);
+        String tokenAdmin = loguearComoAdmin();
+
+        double totalAntes = gananciasDelMes(tokenAdmin);
+
+        mockMvc.perform(post("/api/v1/pagos/" + pago.getId() + "/anulacion")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(motivo("cobro duplicado")))
+                .andExpect(status().isOk());
+
+        // Si el total no baja, el desglose del mes y el numero del dashboard dejan de
+        // coincidir y nadie puede saber cual de los dos miente.
+        assertEquals(totalAntes - pago.getMontoAbonado(), gananciasDelMes(tokenAdmin), 0.001);
+    }
+
+    @Test
+    @DisplayName("Anular el ultimo pago devuelve el vencimiento del socio al pago anterior")
+    void anularUltimoPago_deberiaDevolverElVencimientoAlPagoAnterior() throws Exception {
+        Cliente cliente = crearClienteConPago("Lara", "Diaz", "555-P35", null, null);
+        Plan plan = planRepository.findAll().get(0);
+
+        // Un segundo pago, mas nuevo, que es el que define el vencimiento vigente.
+        LocalDate vencimientoViejo = pagoRepository.findByClienteId(cliente.getId()).get(0).getFechaVencimiento();
+        Pago pagoNuevo = new Pago();
+        pagoNuevo.setCliente(cliente);
+        pagoNuevo.setPlan(plan);
+        pagoNuevo.setMontoAbonado(plan.getPrecio());
+        pagoNuevo.setFechaPago(LocalDate.now());
+        pagoNuevo.setFechaVencimiento(vencimientoViejo.plusDays(30));
+        pagoNuevo = pagoRepository.save(pagoNuevo);
+
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(post("/api/v1/pagos/" + pagoNuevo.getId() + "/anulacion")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(motivo("se cargo al socio equivocado")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechaVencimiento").value(vencimientoViejo.toString()));
+    }
+
+    @Test
+    @DisplayName("Anular el unico pago de un socio lo saca de ACTIVO en el momento, sin esperar al scheduler")
+    void anularElUnicoPago_deberiaRecalcularElEstadoDelSocio() throws Exception {
+        Cliente cliente = crearClienteConPago("Bruno", "Lopez", "555-P36", null, null);
+        Integer idPago = pagoRepository.findByClienteId(cliente.getId()).get(0).getId();
+        String tokenAdmin = loguearComoAdmin();
+
+        assertEquals(EstadoCliente.ACTIVO, clienteRepository.findById(cliente.getId()).orElseThrow().getEstado());
+
+        mockMvc.perform(post("/api/v1/pagos/" + idPago + "/anulacion")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(motivo("nunca pago")))
+                .andExpect(status().isOk());
+
+        // Sin el recalculo, el socio quedaba ACTIVO apoyado en un pago que ya no cuenta,
+        // y el scheduler no lo iba a corregir hasta la proxima corrida diaria.
+        assertEquals(EstadoCliente.INACTIVO, clienteRepository.findById(cliente.getId()).orElseThrow().getEstado());
+    }
+
+    /** Cuerpo JSON de una anulacion. */
+    private String motivo(String texto) {
+        return "{\"motivo\":\"" + texto + "\"}";
+    }
+
+    private double gananciasDelMes(String tokenAdmin) throws Exception {
+        MvcResult resultado = mockMvc.perform(get("/api/v1/dashboard/ganancias-mensuales")
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(resultado.getResponse().getContentAsString())
+                .get("totalGanancias").asDouble();
     }
 
     private Cliente crearClienteConPago(String nombre, String apellido, String telefono,

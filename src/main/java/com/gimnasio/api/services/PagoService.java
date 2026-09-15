@@ -29,6 +29,22 @@ public interface PagoService {
     Page<Pago> obtenerTodos(LocalDate desde, LocalDate hasta, Pageable pageable);
 
     /**
+     * Anula un pago cargado por error: la fila se conserva —con quién lo anuló, cuándo y
+     * por qué— pero deja de contar para las ganancias y para la fecha de vencimiento del
+     * socio, y el estado del socio se recalcula en el momento.
+     *
+     * <p>No existe borrar un pago ni editarle el monto: corregir un importe es anular este
+     * y registrar el correcto. Ver la migración V6 para el detalle.
+     *
+     * @param id identificador del pago a anular.
+     * @param motivo por qué se anula; obligatorio, es lo que hace que la fila conservada
+     *               sirva como auditoría.
+     * @param anuladoPorId quién anula, tomado del token y nunca del body.
+     * @throws IllegalArgumentException si el pago ya estaba anulado.
+     */
+    Pago anular(Integer id, String motivo, Integer anuladoPorId);
+
+    /**
      * Obtiene un pago por su ID único.
      * @param id Identificador del pago.
      * @return El pago encontrado.
