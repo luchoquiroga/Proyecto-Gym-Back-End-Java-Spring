@@ -7,15 +7,24 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * DTO para la solicitud de cambio o recuperación de contraseña.
+ * Cambio de la contraseña <b>propia</b> ({@code PUT /api/v1/usuarios/cambiar-contrasena}).
+ *
+ * <p>No tiene campo {@code nombre} a propósito, y eso es el punto del DTO: antes lo tenía,
+ * así que quien llamaba elegía desde el body a qué cuenta le cambiaba la clave. Ahora la
+ * cuenta sale del {@code AuthPrincipal} (el token), nunca del body — la misma regla que
+ * se aplica a {@code pagos.registrado_por}.
+ *
+ * <p>Pedir la contraseña actual es lo que separa este endpoint de un reset administrativo:
+ * sin ella, una sesión abierta y olvidada alcanzaría para quedarse con la cuenta. El reset
+ * sin contraseña actual existe aparte, es solo de ADMIN y no se puede usar contra uno mismo.
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class CambioContrasenaRequest {
 
-    @NotBlank(message = "El nombre de usuario es obligatorio")
-    private String nombre;
+    @NotBlank(message = "La contraseña actual es obligatoria")
+    private String contrasenaActual;
 
     @NotBlank(message = "La nueva contraseña es obligatoria")
     @Size(min = 8, message = "La nueva contraseña debe tener al menos 8 caracteres")

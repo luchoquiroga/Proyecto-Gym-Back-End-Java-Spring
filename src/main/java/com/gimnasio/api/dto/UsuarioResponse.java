@@ -17,8 +17,11 @@ public class UsuarioResponse {
     private Integer id;
     private String nombre;
     private RolUsuario rol;
+    // Si la cuenta está dada de baja. No es dato sensible y la UI lo necesita para distinguir
+    // una cuenta vigente de una desactivada, que sigue existiendo en la tabla (ver V5).
+    private boolean activo;
 
     public static UsuarioResponse desde(Usuario usuario) {
-        return new UsuarioResponse(usuario.getId(), usuario.getNombre(), usuario.getRol());
+        return new UsuarioResponse(usuario.getId(), usuario.getNombre(), usuario.getRol(), usuario.isActivo());
     }
 }

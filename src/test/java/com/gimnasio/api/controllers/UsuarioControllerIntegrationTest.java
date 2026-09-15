@@ -6,6 +6,7 @@ import com.gimnasio.api.dto.LoginRequest;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.repositories.ClienteRepository;
+import com.gimnasio.api.repositories.UsuarioRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,9 @@ class UsuarioControllerIntegrationTest {
 
     @Autowired
     private ClienteRepository clienteRepository;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
 
     @Test
     @DisplayName("Login con admin/admin123 debe devolver access token, datos del usuario y cookie refreshToken HttpOnly")
@@ -201,6 +205,157 @@ class UsuarioControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(org.hamcrest.Matchers.not(9999)))
                 .andExpect(jsonPath("$.nombre").value("otroStaff"));
+    }
+
+    @Test
+    @DisplayName("Dar de baja a un usuario que tiene sesiones abiertas no debe fallar con 409")
+    void darDeBaja_conRefreshTokensEnLaBase_deberiaFuncionar() throws Exception {
+        // El caso que fallaba: las filas de refresh_tokens de un empleado que se logueó alguna
+        // vez no se borran nunca (revocar solo las marca) y la FK no tiene cascada, así que el
+        // DELETE moría con una violación de integridad. Ahora la baja es lógica y la fila queda.
+        String tokenAdmin = tokenDeAdmin();
+        Integer idStaff = crearStaff(tokenAdmin, "staffConSesion", "claveStaff123", "GERENCIA");
+
+        MvcResult loginStaff = login("staffConSesion", "claveStaff123");
+        Cookie cookieStaff = loginStaff.getResponse().getCookie("refreshToken");
+
+        mockMvc.perform(delete("/api/v1/usuarios/" + idStaff)
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isNoContent());
+
+        assertFalse(usuarioRepository.findById(idStaff).orElseThrow().isActivo());
+
+        // La cuenta deja de servir: no puede loguearse de nuevo ni estirar la sesión que tenía.
+        mockMvc.perform(post("/api/v1/usuarios/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new LoginRequest("staffConSesion", "claveStaff123"))))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/v1/usuarios/refresh").cookie(cookieStaff))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Reactivar una cuenta dada de baja debe devolverle el acceso")
+    void reactivar_cuentaDadaDeBaja_deberiaPoderLoguearseDeNuevo() throws Exception {
+        String tokenAdmin = tokenDeAdmin();
+        Integer idStaff = crearStaff(tokenAdmin, "staffAReactivar", "claveStaff123", "GERENCIA");
+
+        mockMvc.perform(delete("/api/v1/usuarios/" + idStaff)
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(patch("/api/v1/usuarios/" + idStaff + "/activo")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activo").value(true))
+                .andExpect(jsonPath("$.contrasena").doesNotExist());
+
+        login("staffAReactivar", "claveStaff123");
+    }
+
+    @Test
+    @DisplayName("GERENCIA puede cambiar su propia contraseña y loguearse con la nueva")
+    void cambiarContrasena_propia_deberiaFuncionarParaGerencia() throws Exception {
+        String tokenAdmin = tokenDeAdmin();
+        crearStaff(tokenAdmin, "gerenteClave", "claveVieja123", "GERENCIA");
+        String tokenGerencia = extraerCampo(login("gerenteClave", "claveVieja123"), "accessToken");
+
+        mockMvc.perform(put("/api/v1/usuarios/cambiar-contrasena")
+                        .header("Authorization", "Bearer " + tokenGerencia)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contrasenaActual\":\"claveVieja123\",\"nuevaContrasena\":\"claveNueva456\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombre").value("gerenteClave"))
+                .andExpect(jsonPath("$.contrasena").doesNotExist());
+
+        login("gerenteClave", "claveNueva456");
+    }
+
+    @Test
+    @DisplayName("Cambiar la contraseña con la actual equivocada devuelve 400 y no cambia nada")
+    void cambiarContrasena_conActualIncorrecta_deberiaDevolver400() throws Exception {
+        String tokenAdmin = tokenDeAdmin();
+        crearStaff(tokenAdmin, "gerenteTerco", "claveVieja123", "GERENCIA");
+        String tokenGerencia = extraerCampo(login("gerenteTerco", "claveVieja123"), "accessToken");
+
+        // 400 y no 401: la sesión es válida, lo que está mal es un dato del body.
+        mockMvc.perform(put("/api/v1/usuarios/cambiar-contrasena")
+                        .header("Authorization", "Bearer " + tokenGerencia)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contrasenaActual\":\"la_que_no_es\",\"nuevaContrasena\":\"claveNueva456\"}"))
+                .andExpect(status().isBadRequest());
+
+        login("gerenteTerco", "claveVieja123");
+    }
+
+    @Test
+    @DisplayName("GERENCIA no puede resetear la contraseña de otra cuenta")
+    void resetearContrasena_conTokenGerencia_deberiaDevolver403() throws Exception {
+        String tokenAdmin = tokenDeAdmin();
+        crearStaff(tokenAdmin, "gerenteCurioso", "claveGerente123", "GERENCIA");
+        Integer idVictima = crearStaff(tokenAdmin, "otroStaffVictima", "claveVictima123", "GERENCIA");
+        String tokenGerencia = extraerCampo(login("gerenteCurioso", "claveGerente123"), "accessToken");
+
+        mockMvc.perform(put("/api/v1/usuarios/" + idVictima + "/contrasena")
+                        .header("Authorization", "Bearer " + tokenGerencia)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nuevaContrasena\":\"meQuedoLaCuenta1\"}"))
+                .andExpect(status().isForbidden());
+
+        login("otroStaffVictima", "claveVictima123");
+    }
+
+    @Test
+    @DisplayName("Un token de CLIENTE no puede cambiar contraseñas de staff aunque el id coincida")
+    void cambiarContrasena_conTokenDeCliente_deberiaDevolver403() throws Exception {
+        // Sin la regla de rol en SecurityConfig, este endpoint resolvería la cuenta con
+        // principal.id(), que para un CLIENTE es un id de la tabla `clientes`: le cambiaría la
+        // contraseña al empleado que tuviera el mismo número.
+        String tokenCliente = registrarYLoguearCliente(
+                "Ana", "Gomez", "555-INT-9", "ana.int9@test.com", "claveAna12345");
+
+        mockMvc.perform(put("/api/v1/usuarios/cambiar-contrasena")
+                        .header("Authorization", "Bearer " + tokenCliente)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contrasenaActual\":\"claveAna12345\",\"nuevaContrasena\":\"claveNueva456\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Un ADMIN no puede resetearse la contraseña a sí mismo esquivando la actual")
+    void resetearContrasena_contraUnoMismo_deberiaDevolver400() throws Exception {
+        MvcResult loginResult = login("admin", "admin123456789");
+        String tokenAdmin = extraerCampo(loginResult, "accessToken");
+        Integer idAdmin = usuarioRepository.findByNombre("admin").orElseThrow().getId();
+
+        mockMvc.perform(put("/api/v1/usuarios/" + idAdmin + "/contrasena")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nuevaContrasena\":\"claveNueva456\"}"))
+                .andExpect(status().isBadRequest());
+
+        login("admin", "admin123456789");
+    }
+
+    private String tokenDeAdmin() throws Exception {
+        return extraerCampo(login("admin", "admin123456789"), "accessToken");
+    }
+
+    /** Crea una cuenta de staff vía API y devuelve su id. */
+    private Integer crearStaff(String tokenAdmin, String nombre, String contrasena, String rol) throws Exception {
+        MvcResult resultado = mockMvc.perform(post("/api/v1/usuarios")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\"" + nombre + "\",\"contrasena\":\"" + contrasena
+                                + "\",\"rol\":\"" + rol + "\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        return Integer.valueOf(extraerCampo(resultado, "id"));
     }
 
     private MvcResult login(String nombre, String contrasena) throws Exception {
