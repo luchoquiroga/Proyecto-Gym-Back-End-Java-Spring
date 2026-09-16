@@ -19,7 +19,14 @@ public record PagoResponse(
         LocalDate fechaPago,
         LocalDate fechaVencimiento,
         ClienteResumen cliente,
-        PlanResumen plan
+        PlanResumen plan,
+        /**
+         * Si el pago fue anulado por haberse cargado por error. Se expone —y el pago se
+         * sigue listando— a propósito: esconderlo sería volver al borrado por la ventana,
+         * que es justamente lo que la anulación evita. No cuenta para las ganancias ni
+         * para la fecha de vencimiento del socio.
+         */
+        boolean anulado
 ) {
 
     public record ClienteResumen(Integer id, String nombre, String apellido) {
@@ -35,7 +42,8 @@ public record PagoResponse(
                 pago.getFechaPago(),
                 pago.getFechaVencimiento(),
                 new ClienteResumen(pago.getCliente().getId(), pago.getCliente().getNombre(), pago.getCliente().getApellido()),
-                new PlanResumen(pago.getPlan().getId(), pago.getPlan().getNombre())
+                new PlanResumen(pago.getPlan().getId(), pago.getPlan().getNombre()),
+                pago.isAnulado()
         );
     }
 }

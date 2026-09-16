@@ -1,6 +1,8 @@
 package com.gimnasio.api.services;
 
 import com.gimnasio.api.models.Usuario;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * Interfaz que define las operaciones de negocio para la autenticación y gestión de Usuarios.
@@ -13,6 +15,13 @@ public interface UsuarioService {
      * @return El usuario registrado.
      */
     Usuario registrar(Usuario usuario);
+
+    /**
+     * Lista las cuentas de staff, paginadas. Incluye las dadas de baja a propósito: son
+     * justamente las que hay que poder ver para reactivarlas, y `UsuarioResponse.activo`
+     * las distingue de las vigentes.
+     */
+    Page<Usuario> obtenerTodos(Pageable pageable);
 
     /**
      * Autentica las credenciales de un usuario al iniciar sesión en la aplicación.

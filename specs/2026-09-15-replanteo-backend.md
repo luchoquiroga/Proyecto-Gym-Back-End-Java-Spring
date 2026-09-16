@@ -453,9 +453,11 @@ que no se pierda en el camino:
   reactivar (`PATCH /usuarios/{id}/activo`), que es la única salida cuando se
   dio de baja a la persona equivocada.
 
-**Web** — todavía no existe; nace directamente contra el contrato nuevo, así
-que no acumula ticket de migración. Tiene dos áreas (staff y socios) y de ella
-depende el escritorio si se convierte en shell.
+**Web** — esto estaba mal: **sí existe** (React + Vite, del 3–5/09) y está
+escrita contra el contrato viejo, así que acumula la migración más grande de las
+tres apps. Sus tickets, ya escritos, están en `2026-09-15-tickets-web.md`.
+Además le falta el área de GERENCIA, que hoy tiene bloqueada por decisión del
+diseño viejo — y sin eso no puede reemplazar al escritorio.
 
 **Mobile** — solo ADMIN y solo consulta, según `ARQUITECTURA-APPS.md`. Nace
 contra el contrato nuevo. Su spec se escribe después de la Fase 4.

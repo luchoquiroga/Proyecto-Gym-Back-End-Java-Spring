@@ -52,6 +52,28 @@ public class VencimientoServiceImpl implements VencimientoService {
         }
     }
 
+    @Override
+    @Transactional
+    public void recalcularEstadoDe(Integer clienteId) {
+        Cliente cliente = clienteRepository.findById(clienteId).orElse(null);
+        if (cliente == null) {
+            return;
+        }
+
+        EstadoCliente estadoCalculado = pagoRepository
+                .findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(clienteId)
+                .map(pago -> calcularEstadoPorDiasVencido(
+                        ChronoUnit.DAYS.between(pago.getFechaVencimiento(), LocalDate.now())))
+                // Sin ningún pago vigente el socio no está al día con nada: es el caso de
+                // anular el único pago que tenía.
+                .orElse(EstadoCliente.INACTIVO);
+
+        if (estadoCalculado != null && estadoCalculado.esPeorQue(cliente.getEstado())) {
+            cliente.setEstado(estadoCalculado);
+            clienteRepository.save(cliente);
+        }
+    }
+
     private EstadoCliente calcularEstadoPorDiasVencido(long diasVencido) {
         if (diasVencido >= DIAS_PARA_INACTIVO) {
             return EstadoCliente.INACTIVO;
