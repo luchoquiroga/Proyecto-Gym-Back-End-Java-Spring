@@ -32,10 +32,11 @@ nada que se conserve, ni tocar autenticación.
 | DELETE | `/api/v1/usuarios/{id}` | no borra: desactiva. Lo mismo hace `PATCH /{id}/activo`, que además reactiva |
 | DELETE | `/api/v1/clientes/{id}` | no borra: pone INACTIVO. Lo mismo hace `PATCH /{id}/estado` |
 
-**Regla que queda:** después de esto **no existe ningún DELETE en la API**, y es
-correcto, porque no se borra ninguna fila en ningún caso. Un `DELETE` que no
-borra es un contrato que miente, y obliga a explicar en cada pantalla que "dar
-de baja" no elimina. Las dos bajas quedan con la misma forma:
+**Regla que queda:** el único `DELETE` que sobrevive es el de planes, y es
+justamente el único que borra una fila de verdad. Ninguna baja es un `DELETE`,
+porque ninguna baja borra: un `DELETE` que no borra es un contrato que miente, y
+obliga a explicar en cada pantalla que "dar de baja" no elimina. Las dos bajas
+quedan con la misma forma:
 
 ```
 PATCH /api/v1/usuarios/{id}/activo   {"activo": false}
