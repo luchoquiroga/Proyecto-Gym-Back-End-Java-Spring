@@ -22,6 +22,9 @@ public class ClienteResponse {
     private String nombre;
     private String apellido;
     private String telefono;
+
+    /** Documento de identidad, normalizado. Distingue a dos socios con el mismo nombre. */
+    private String documento;
     private String email;
     private EstadoCliente estado;
 
@@ -69,6 +72,7 @@ public class ClienteResponse {
                 cliente.getNombre(),
                 cliente.getApellido(),
                 cliente.getTelefono(),
+                cliente.getDocumento(),
                 cliente.getEmail(),
                 cliente.getEstado(),
                 ultimoPago == null ? null : ultimoPago.getFechaVencimiento(),

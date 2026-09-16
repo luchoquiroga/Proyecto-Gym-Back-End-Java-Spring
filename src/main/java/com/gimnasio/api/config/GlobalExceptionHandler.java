@@ -1,6 +1,7 @@
 package com.gimnasio.api.config;
 
 import com.gimnasio.api.dto.ErrorResponse;
+import com.gimnasio.api.exceptions.RecursoDuplicadoException;
 import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -42,6 +43,19 @@ public class GlobalExceptionHandler {
                 LocalDateTime.now()
         );
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(RecursoDuplicadoException.class)
+    public ResponseEntity<ErrorResponse> manejarRecursoDuplicado(RecursoDuplicadoException ex) {
+        // Mensaje nuestro, redactado para el usuario final: decirle cuál es el dato repetido
+        // es justamente lo que le permite resolverlo. El 409 genérico de más abajo existe
+        // para cuando la que salta es la restricción de la base, cuyo mensaje sí es interno.
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.CONFLICT.value(),
+                ex.getMessage(),
+                LocalDateTime.now()
+        );
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

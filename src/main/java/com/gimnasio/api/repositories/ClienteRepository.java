@@ -13,6 +13,7 @@ public interface ClienteRepository extends JpaRepository<Cliente, Integer> {
     // mostrador: exigir el nombre exacto no sirve para escribir y filtrar.
     List<Cliente> findByNombreContainingIgnoreCase(String nombre);
     Optional<Cliente> findByEmail(String email);
+    Optional<Cliente> findByDocumento(String documento);
     Optional<Cliente> findByCodigoActivacion(String codigoActivacion);
     boolean existsByCodigoActivacion(String codigoActivacion);
 }

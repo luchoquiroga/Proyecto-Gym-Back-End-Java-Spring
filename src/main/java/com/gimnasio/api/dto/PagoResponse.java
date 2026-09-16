@@ -29,7 +29,12 @@ public record PagoResponse(
         boolean anulado
 ) {
 
-    public record ClienteResumen(Integer id, String nombre, String apellido) {
+    /**
+     * Quién pagó. Lleva el documento porque el nombre no alcanza: dos socios homónimos
+     * aparecían como dos filas idénticas en el desglose de ganancias del mes, y era
+     * imposible saber a cuál de los dos había que anularle el pago.
+     */
+    public record ClienteResumen(Integer id, String nombre, String apellido, String documento) {
     }
 
     public record PlanResumen(Integer id, String nombre) {
@@ -41,7 +46,8 @@ public record PagoResponse(
                 pago.getMontoAbonado(),
                 pago.getFechaPago(),
                 pago.getFechaVencimiento(),
-                new ClienteResumen(pago.getCliente().getId(), pago.getCliente().getNombre(), pago.getCliente().getApellido()),
+                new ClienteResumen(pago.getCliente().getId(), pago.getCliente().getNombre(),
+                        pago.getCliente().getApellido(), pago.getCliente().getDocumento()),
                 new PlanResumen(pago.getPlan().getId(), pago.getPlan().getNombre()),
                 pago.isAnulado()
         );

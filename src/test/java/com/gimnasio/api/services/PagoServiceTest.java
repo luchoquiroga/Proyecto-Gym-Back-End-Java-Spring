@@ -52,7 +52,7 @@ class PagoServiceTest {
 
     @BeforeEach
     void setUp() {
-        clienteInactivo = new Cliente(1, "Lucía", "Pérez", "11223344", null, null, EstadoCliente.INACTIVO, null);
+        clienteInactivo = new Cliente(1, "Lucía", "Pérez", "11223344", "11223344", null, null, EstadoCliente.INACTIVO, null);
         planMensual = new Plan(1, "Pase Mensual", 32500.0, 30);
         cajero = new Usuario(7, "gerencia1", "hash-irrelevante", RolUsuario.GERENCIA);
     }

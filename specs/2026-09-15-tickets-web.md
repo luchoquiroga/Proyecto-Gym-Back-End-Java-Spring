@@ -122,8 +122,15 @@ funcionando igual.
 
 ### W3 — El socio ahora trae vencimiento, y `VENCIDO` no existe
 
-`ClienteResponse` es hoy: `id`, `nombre`, `apellido`, `telefono`, `email`,
-`estado`, `fechaVencimiento`.
+`ClienteResponse` es hoy: `id`, `nombre`, `apellido`, `telefono`, `documento`,
+`email`, `estado`, `fechaVencimiento`, `planVigente`.
+
+- **`documento` es obligatorio y único** (Fase 8), y es lo que distingue a dos
+  socios que se llaman igual. Tiene que aparecer en el listado y en la ficha: es
+  la columna que hace que dos "Juan Pérez" dejen de ser dos filas idénticas.
+  Viene siempre normalizado (sin puntos), aunque se haya cargado con puntos.
+- **`planVigente`** (id + nombre, sin precio) es el plan del último pago del
+  socio. Null si nunca pagó, igual que `fechaVencimiento`.
 
 - **`fechaVencimiento` es el dato nuevo de la Fase 2** y es la razón por la que
   GERENCIA puede trabajar sin ver pagos: responde "¿este socio está al día?" sin
@@ -175,17 +182,25 @@ a propósito), así que no intentes mostrarlo.
 
 Hoy el botón "Registrar Socio" no hace nada. ADMIN y GERENCIA.
 
-- **Alta** (`POST /clientes`): nombre, apellido, telefono. El socio nace
-  `INACTIVO` hasta su primer pago; el estado no se manda.
+- **Alta** (`POST /clientes`): nombre, apellido, telefono y **documento**. El
+  socio nace `INACTIVO` hasta su primer pago; el estado no se manda.
+- **El documento es obligatorio** y el backend devuelve **409** si ya pertenece
+  a otro socio, con un mensaje que dice cuál es. Ese 409 hay que mostrarlo tal
+  cual: es el caso de "esta persona ya está cargada", que el mostrador necesita
+  entender, no un error genérico. Se puede escribir con o sin puntos: el backend
+  lo normaliza antes de guardarlo, así que no hace falta validar el formato en
+  el front (sí conviene no dejar mandar vacío).
 - **Devuelve un dato de un solo uso:** `ClienteAltaResponse` trae el
   `codigoActivacion`, que el socio necesita para crearse la cuenta del portal.
   **Es la única vez que ese código viaja**: hay que mostrarlo en pantalla de
   forma que se pueda copiar o imprimir, porque si se pierde no se puede volver a
   consultar.
-- **Edición** (`PUT /clientes/{id}`): **solo datos de contacto**. El email no se
-  edita desde el mostrador porque es la identidad de login del socio en el
-  portal y cambiárselo le sacaría el acceso sin que se entere. El formulario no
-  debe ofrecer ni email ni contraseña.
+- **Edición** (`PUT /clientes/{id}`): datos de contacto **y documento**. Un
+  documento mal tipeado en el alta hay que poder corregirlo, y el único que
+  puede es el staff; también devuelve 409 si choca con otro socio. El email, en
+  cambio, no se edita desde el mostrador porque es la identidad de login del
+  socio en el portal y cambiárselo le sacaría el acceso sin que se entere. El
+  formulario no debe ofrecer ni email ni contraseña.
 - **Baja** (`PATCH /clientes/{id}/estado` con `{"estado":"INACTIVO"}`): pone al
   socio en INACTIVO y nunca borra la fila. La UI tiene que decir "dar de baja",
   no "eliminar" — y no hay ningún DELETE que llamar, porque no existe. El mismo
@@ -314,6 +329,12 @@ El alcance pide poder **abrir ese número**: ver los pagos que lo componen.
 Con F6.3, es `GET /pagos?desde=&hasta=` paginado. El total de arriba y la suma
 del listado tienen que coincidir —incluido el tratamiento de los anulados— o el
 usuario no va a saber cuál de los dos creer.
+
+**Mostrá el documento en cada fila.** `PagoResponse.cliente` trae
+`{id, nombre, apellido, documento}`, y el documento está ahí por este ticket:
+sin él, dos socios homónimos aparecen como dos cobros idénticos y es imposible
+saber a cuál de los dos hay que anularle el pago (W12). El id no sirve para eso:
+no se muestra y nadie lo reconoce.
 
 ## 5. Orden sugerido
 

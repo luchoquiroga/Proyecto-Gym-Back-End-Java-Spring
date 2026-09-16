@@ -328,7 +328,7 @@ class PagoControllerIntegrationTest {
     @DisplayName("Un socio sin pagos no tiene plan vigente ni vencimiento")
     void obtenerCliente_sinPagos_deberiaTraerPlanVigenteNulo() throws Exception {
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, "Elsa", "Mota", "555-P22", null, null, EstadoCliente.INACTIVO, null));
+                new Cliente(null, "Elsa", "Mota", "555-P22", "555-P22", null, null, EstadoCliente.INACTIVO, null));
         String tokenAdmin = loguearComoAdmin();
 
         mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
@@ -511,7 +511,7 @@ class PagoControllerIntegrationTest {
         // El teléfono ya es único por test y cabe en el VARCHAR(10) de codigo_activacion,
         // así que sirve como código de activación de prueba sin riesgo de colisión.
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, nombre, apellido, telefono, null, null, EstadoCliente.ACTIVO, telefono));
+                new Cliente(null, nombre, apellido, telefono, telefono, null, null, EstadoCliente.ACTIVO, telefono));
 
         if (email != null) {
             mockMvc.perform(post("/api/v1/clientes/registro")

@@ -3,6 +3,7 @@ package com.gimnasio.api.services.impl;
 import com.gimnasio.api.dto.ClienteRequest;
 import com.gimnasio.api.dto.ClienteResponse;
 import com.gimnasio.api.dto.PaginaResponse;
+import com.gimnasio.api.exceptions.RecursoDuplicadoException;
 import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.Pago;
@@ -34,6 +35,9 @@ public class ClienteServiceImpl implements ClienteService {
     private static final String ALFABETO_CODIGO_ACTIVACION = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int LARGO_CODIGO_ACTIVACION = 8;
     private static final SecureRandom RANDOM = new SecureRandom();
+    // Ya normalizado, o sea sin puntos ni guiones. Un DNI argentino tiene 7 u 8 dígitos;
+    // seis es el piso que deja pasar documentos extranjeros cortos sin aceptar un typo.
+    private static final int LARGO_MINIMO_DOCUMENTO = 6;
 
     private final ClienteRepository clienteRepository;
     private final PagoRepository pagoRepository;
@@ -56,10 +60,17 @@ public class ClienteServiceImpl implements ClienteService {
             throw new IllegalArgumentException("Ya existe un cliente registrado con el email: " + request.getEmail());
         }
 
+        String documento = normalizarDocumento(request.getDocumento());
+        clienteRepository.findByDocumento(documento).ifPresent(otro -> {
+            throw new RecursoDuplicadoException(
+                    "Ya existe un socio registrado con el documento " + documento + ".");
+        });
+
         Cliente cliente = new Cliente();
         cliente.setNombre(request.getNombre());
         cliente.setApellido(request.getApellido());
         cliente.setTelefono(request.getTelefono());
+        cliente.setDocumento(documento);
         cliente.setEmail(request.getEmail());
 
         // Por regla de negocio, un cliente recién registrado siempre inicia INACTIVO hasta
@@ -89,9 +100,22 @@ public class ClienteServiceImpl implements ClienteService {
         // acceso a su cuenta sin que se entere. La contraseña tampoco: la define el propio
         // socio en /registro. Ambos campos existen en ClienteRequest porque el alta sí los
         // usa, y acá se ignoran deliberadamente (ver el javadoc de ClienteRequest).
+        // El documento SÍ se puede corregir, a diferencia del email: un documento mal
+        // tipeado en el alta hay que poder arreglarlo, y el único que puede es el staff.
+        String documento = normalizarDocumento(request.getDocumento());
+        clienteRepository.findByDocumento(documento).ifPresent(otro -> {
+            // Que el dueño del documento sea este mismo socio no es un conflicto: pasa en
+            // cualquier edición donde el documento no se toca.
+            if (!otro.getId().equals(clienteExistente.getId())) {
+                throw new RecursoDuplicadoException(
+                        "Ya existe otro socio registrado con el documento " + documento + ".");
+            }
+        });
+
         clienteExistente.setNombre(request.getNombre());
         clienteExistente.setApellido(request.getApellido());
         clienteExistente.setTelefono(request.getTelefono());
+        clienteExistente.setDocumento(documento);
 
         Cliente guardado = clienteRepository.save(clienteExistente);
         return ClienteResponse.desde(guardado, ultimoPago(guardado.getId()));
@@ -145,6 +169,23 @@ public class ClienteServiceImpl implements ClienteService {
         // De un solo uso: una vez canjeado no debe volver a servir para reclamar la cuenta.
         cliente.setCodigoActivacion(null);
         return clienteRepository.save(cliente);
+    }
+
+    /**
+     * Deja el documento en su forma canónica: sin puntos, espacios ni guiones, y en
+     * mayúsculas (los pasaportes llevan letras). Es lo que hace que la restricción de
+     * unicidad sirva para algo: '12.345.678' y '12345678' son la misma persona, y sobre el
+     * texto tal cual se escribió la base los aceptaría como dos socios distintos, que es
+     * justo el problema que el documento viene a resolver.
+     */
+    private String normalizarDocumento(String documento) {
+        String normalizado = documento == null ? "" : documento.replaceAll("[.\\-\\s]", "").toUpperCase();
+        if (normalizado.length() < LARGO_MINIMO_DOCUMENTO) {
+            throw new IllegalArgumentException(
+                    "El documento es demasiado corto: necesita al menos " + LARGO_MINIMO_DOCUMENTO
+                            + " caracteres sin contar puntos ni guiones.");
+        }
+        return normalizado;
     }
 
     private String generarCodigoActivacionUnico() {

@@ -51,7 +51,7 @@ class ClienteServiceTest {
     @BeforeEach
     void setUp() {
         clienteService = new ClienteServiceImpl(clienteRepository, pagoRepository, passwordEncoder);
-        clientePrueba = new Cliente(1, "Carlos", "Gómez", "123456789", null, null, EstadoCliente.INACTIVO, null);
+        clientePrueba = new Cliente(1, "Carlos", "Gómez", "123456789", "123456789", null, null, EstadoCliente.INACTIVO, null);
     }
 
     @Test
@@ -59,7 +59,7 @@ class ClienteServiceTest {
     void crear_deberiaGuardarClienteConEstadoInactivo() {
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", null, null);
+        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "123456789", null, null);
         Cliente resultado = clienteService.crear(nuevo);
 
         assertNotNull(resultado);
@@ -72,7 +72,7 @@ class ClienteServiceTest {
     void crear_sinCredenciales_deberiaGuardarClienteSinEmailNiContrasena() {
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", null, null);
+        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "123456789", null, null);
         Cliente resultado = clienteService.crear(nuevo);
 
         assertNull(resultado.getEmail());
@@ -86,7 +86,7 @@ class ClienteServiceTest {
         when(clienteRepository.existsByCodigoActivacion(any())).thenReturn(false);
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", null, null);
+        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "123456789", null, null);
         Cliente resultado = clienteService.crear(nuevo);
 
         assertNotNull(resultado.getCodigoActivacion());
@@ -98,7 +98,7 @@ class ClienteServiceTest {
         when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.empty());
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "carlos@mail.com", "clave123");
+        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "123456789", "carlos@mail.com", "clave123");
         Cliente resultado = clienteService.crear(nuevo);
 
         assertNull(resultado.getCodigoActivacion());
@@ -114,7 +114,7 @@ class ClienteServiceTest {
         // con esas claves de más contra el endpoint real.
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", null, null);
+        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "123456789", null, null);
         Cliente resultado = clienteService.crear(nuevo);
 
         assertNull(resultado.getId());
@@ -127,7 +127,7 @@ class ClienteServiceTest {
         when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.empty());
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "carlos@mail.com", "claveEnTextoPlano");
+        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "123456789", "carlos@mail.com", "claveEnTextoPlano");
         Cliente resultado = clienteService.crear(nuevo);
 
         assertNotEquals("claveEnTextoPlano", resultado.getContrasena());
@@ -139,7 +139,7 @@ class ClienteServiceTest {
     void crear_conEmailDuplicado_deberiaLanzarExcepcion() {
         when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
 
-        ClienteRequest nuevo = new ClienteRequest("Otro", "Cliente", "987654321", "carlos@mail.com", "otraClave");
+        ClienteRequest nuevo = new ClienteRequest("Otro", "Cliente", "987654321", "987654321", "carlos@mail.com", "otraClave");
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
             clienteService.crear(nuevo);
@@ -183,7 +183,7 @@ class ClienteServiceTest {
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
 
-        ClienteRequest actualizacion = new ClienteRequest("Carlos Nuevo", "Gómez", "999999999", null, null);
+        ClienteRequest actualizacion = new ClienteRequest("Carlos Nuevo", "Gómez", "999999999", "999999999", null, null);
         ClienteResponse resultado = clienteService.actualizar(1, actualizacion);
 
         assertEquals("Carlos Nuevo", resultado.getNombre());
@@ -342,7 +342,7 @@ class ClienteServiceTest {
     @Test
     @DisplayName("obtenerTodosConVencimiento no debe mezclar la fecha de vencimiento entre distintos clientes")
     void obtenerTodosConVencimiento_deberiaAsignarLaFechaCorrectaACadaCliente() {
-        Cliente otroCliente = new Cliente(2, "Ana", "Lopez", "987654321", null, null, EstadoCliente.ACTIVO, null);
+        Cliente otroCliente = new Cliente(2, "Ana", "Lopez", "987654321", "987654321", null, null, EstadoCliente.ACTIVO, null);
         Pageable pageable = PageRequest.of(0, 20);
         when(clienteRepository.findAll(pageable))
                 .thenReturn(new PageImpl<>(List.of(clientePrueba, otroCliente), pageable, 2));
@@ -446,7 +446,7 @@ class ClienteServiceTest {
     void buscarPorNombreConVencimiento_conVariasCoincidencias_deberiaDevolverlasTodas() {
         // La búsqueda es por coincidencia parcial, así que un fragmento como "car" tiene
         // que traer a todos los socios que lo contengan, no exigir el nombre completo.
-        Cliente otroCarlos = new Cliente(2, "Carla", "Gomez", "555", null, null, EstadoCliente.ACTIVO, null);
+        Cliente otroCarlos = new Cliente(2, "Carla", "Gomez", "555", "555", null, null, EstadoCliente.ACTIVO, null);
         when(clienteRepository.findByNombreContainingIgnoreCase("car"))
                 .thenReturn(List.of(clientePrueba, otroCarlos));
         when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());

@@ -22,6 +22,7 @@ public class ClienteAltaResponse {
     private String nombre;
     private String apellido;
     private String telefono;
+    private String documento;
     private EstadoCliente estado;
     private String codigoActivacion;
 
@@ -31,6 +32,7 @@ public class ClienteAltaResponse {
                 cliente.getNombre(),
                 cliente.getApellido(),
                 cliente.getTelefono(),
+                cliente.getDocumento(),
                 cliente.getEstado(),
                 cliente.getCodigoActivacion()
         );
