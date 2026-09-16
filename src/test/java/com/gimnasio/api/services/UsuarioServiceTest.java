@@ -171,7 +171,7 @@ class UsuarioServiceTest {
     @DisplayName("Dar de baja debe rechazar que un usuario se dé de baja a sí mismo")
     void darDeBaja_conAutoBaja_deberiaLanzarExcepcion() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                usuarioService.darDeBaja(1, 1));
+                usuarioService.cambiarActivo(1, false, 1));
 
         assertTrue(ex.getMessage().contains("propio usuario"));
         verify(usuarioRepository, never()).save(any(Usuario.class));
@@ -184,7 +184,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.countByRolAndActivoTrue(RolUsuario.ADMIN)).thenReturn(1L);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                usuarioService.darDeBaja(1, 2));
+                usuarioService.cambiarActivo(1, false, 2));
 
         assertTrue(ex.getMessage().contains("último administrador"));
         verify(usuarioRepository, never()).save(any(Usuario.class));
@@ -198,7 +198,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.findById(1)).thenReturn(Optional.of(usuarioAdmin));
         when(usuarioRepository.countByRolAndActivoTrue(RolUsuario.ADMIN)).thenReturn(1L);
 
-        assertThrows(IllegalArgumentException.class, () -> usuarioService.darDeBaja(1, 2));
+        assertThrows(IllegalArgumentException.class, () -> usuarioService.cambiarActivo(1, false, 2));
 
         assertTrue(usuarioAdmin.isActivo());
     }
@@ -210,7 +210,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.countByRolAndActivoTrue(RolUsuario.ADMIN)).thenReturn(2L);
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        usuarioService.darDeBaja(1, 2);
+        usuarioService.cambiarActivo(1, false, 2);
 
         // La fila se conserva: si se borrara, `pagos.registrado_por` de todo lo que cobró se
         // iría a NULL (FK ON DELETE SET NULL de V3) y se perdería la auditoría de caja.

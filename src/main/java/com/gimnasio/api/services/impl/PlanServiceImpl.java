@@ -26,18 +26,13 @@ public class PlanServiceImpl implements PlanService {
         return planRepository.findAll();
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Plan obtenerPorId(Integer id) {
+    // Privado: solo lo usan actualizar() y eliminar(), acá abajo. Dejó de estar en la
+    // interfaz al sacarse GET /planes/{id}, que era su único consumidor externo.
+    private Plan obtenerPorId(Integer id) {
         return planRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Plan no encontrado con ID: " + id));
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<Plan> buscarPorNombre(String nombre) {
-        return planRepository.findByNombreContainingIgnoreCase(nombre);
-    }
 
     @Override
     @Transactional

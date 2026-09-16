@@ -14,7 +14,6 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -45,41 +44,25 @@ public class PagoController {
                 PaginaResponse.desde(pagoService.obtenerTodos(desde, hasta, pageable), PagoResponse::desde));
     }
 
+    /**
+     * Detalle de un pago (solo ADMIN, ver SecurityConfig). Hasta la Fase 7 también lo podía
+     * leer el CLIENTE dueño, con un chequeo de ownership acá adentro; se cerró porque el
+     * portal del socio no muestra pagos, así que era una rama sin ningún consumidor.
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<PagoResponse> obtenerPorId(@PathVariable Integer id,
-                                              @AuthenticationPrincipal AuthPrincipal principal) {
+    public ResponseEntity<PagoResponse> obtenerPorId(@PathVariable Integer id) {
         Pago pago = pagoService.obtenerPorId(id);
-        // El id del principal solo significa "cliente" si el principal ES un cliente:
-        // Usuario y Cliente son tablas distintas con secuencias de id independientes,
-        // así que comparar ids sin mirar el rol dejaría pasar a un GERENCIA cuyo id de
-        // usuario coincida por casualidad con el id del socio dueño del pago.
-        boolean esAdmin = "ADMIN".equals(principal.rol());
-        boolean esClienteDuenio = "CLIENTE".equals(principal.rol())
-                && pago.getCliente().getId().equals(principal.id());
-        if (!esAdmin && !esClienteDuenio) {
-            throw new AccessDeniedException("No podés acceder a los pagos de otro cliente");
-        }
         return ResponseEntity.ok(PagoResponse.desde(pago));
     }
 
+    /**
+     * Pagos de un socio (solo ADMIN, ver SecurityConfig). Es la pantalla desde la que se
+     * encuentra un pago mal cargado para anularlo. El id no lo escribe nadie: la web lo
+     * tiene de la fila del listado en la que se hizo clic.
+     */
     @GetMapping("/cliente/{clienteId}")
-    public ResponseEntity<List<PagoResponse>> obtenerPagosPorCliente(@PathVariable Integer clienteId,
-                                                              @AuthenticationPrincipal AuthPrincipal principal) {
-        // Mismo motivo que en obtenerPorId: el id solo identifica a un socio si el
-        // principal es un CLIENTE, nunca por el número suelto.
-        boolean esAdmin = "ADMIN".equals(principal.rol());
-        boolean esClienteDuenio = "CLIENTE".equals(principal.rol()) && clienteId.equals(principal.id());
-        if (!esAdmin && !esClienteDuenio) {
-            throw new AccessDeniedException("No podés acceder a los pagos de otro cliente");
-        }
+    public ResponseEntity<List<PagoResponse>> obtenerPagosPorCliente(@PathVariable Integer clienteId) {
         return ResponseEntity.ok(pagoService.obtenerPagosPorCliente(clienteId).stream()
-                .map(PagoResponse::desde)
-                .toList());
-    }
-
-    @GetMapping("/buscar")
-    public ResponseEntity<List<PagoResponse>> buscarPagosPorNombreCliente(@RequestParam String nombreCliente) {
-        return ResponseEntity.ok(pagoService.buscarPagosPorNombreCliente(nombreCliente).stream()
                 .map(PagoResponse::desde)
                 .toList());
     }

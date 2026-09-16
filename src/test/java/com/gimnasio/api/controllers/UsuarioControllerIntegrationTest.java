@@ -208,8 +208,8 @@ class UsuarioControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Dar de baja a un usuario que tiene sesiones abiertas no debe fallar con 409")
-    void darDeBaja_conRefreshTokensEnLaBase_deberiaFuncionar() throws Exception {
+    @DisplayName("Desactivar a un usuario que tiene sesiones abiertas no debe fallar con 409")
+    void desactivar_conRefreshTokensEnLaBase_deberiaFuncionar() throws Exception {
         // El caso que fallaba: las filas de refresh_tokens de un empleado que se logueó alguna
         // vez no se borran nunca (revocar solo las marca) y la FK no tiene cascada, así que el
         // DELETE moría con una violación de integridad. Ahora la baja es lógica y la fila queda.
@@ -219,9 +219,12 @@ class UsuarioControllerIntegrationTest {
         MvcResult loginStaff = login("staffConSesion", "claveStaff123");
         Cookie cookieStaff = loginStaff.getResponse().getCookie("refreshToken");
 
-        mockMvc.perform(delete("/api/v1/usuarios/" + idStaff)
-                        .header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(patch("/api/v1/usuarios/" + idStaff + "/activo")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activo").value(false));
 
         assertFalse(usuarioRepository.findById(idStaff).orElseThrow().isActivo());
 
@@ -242,9 +245,12 @@ class UsuarioControllerIntegrationTest {
         String tokenAdmin = tokenDeAdmin();
         Integer idStaff = crearStaff(tokenAdmin, "staffAReactivar", "claveStaff123", "GERENCIA");
 
-        mockMvc.perform(delete("/api/v1/usuarios/" + idStaff)
-                        .header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(patch("/api/v1/usuarios/" + idStaff + "/activo")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activo").value(false));
 
         mockMvc.perform(patch("/api/v1/usuarios/" + idStaff + "/activo")
                         .header("Authorization", "Bearer " + tokenAdmin)
@@ -359,9 +365,12 @@ class UsuarioControllerIntegrationTest {
         String tokenAdmin = tokenDeAdmin();
         Integer idStaff = crearStaff(tokenAdmin, "staffListado", "claveStaff123", "GERENCIA");
 
-        mockMvc.perform(delete("/api/v1/usuarios/" + idStaff)
-                        .header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(patch("/api/v1/usuarios/" + idStaff + "/activo")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activo").value(false));
 
         mockMvc.perform(get("/api/v1/usuarios")
                         .header("Authorization", "Bearer " + tokenAdmin)

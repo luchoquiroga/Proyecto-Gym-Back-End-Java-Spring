@@ -153,8 +153,10 @@ class ClienteServiceTest {
     @DisplayName("Debe retornar cliente cuando el ID existe")
     void obtenerPorId_cuandoExiste_deberiaRetornarCliente() {
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clientePrueba));
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1))
+                .thenReturn(Optional.empty());
 
-        Cliente resultado = clienteService.obtenerPorId(1);
+        ClienteResponse resultado = clienteService.obtenerRespuestaPorId(1);
 
         assertNotNull(resultado);
         assertEquals("Carlos", resultado.getNombre());
@@ -167,7 +169,7 @@ class ClienteServiceTest {
         when(clienteRepository.findById(99)).thenReturn(Optional.empty());
 
         RecursoNoEncontradoException exception = assertThrows(RecursoNoEncontradoException.class, () -> {
-            clienteService.obtenerPorId(99);
+            clienteService.obtenerRespuestaPorId(99);
         });
 
         assertTrue(exception.getMessage().contains("no encontrado con id: 99"));
@@ -189,18 +191,6 @@ class ClienteServiceTest {
     }
 
     @Test
-    @DisplayName("cambiarEstado debe devolver un ClienteResponse con el estado nuevo")
-    void cambiarEstado_deberiaDevolverClienteResponseConEstadoNuevo() {
-        when(clienteRepository.findById(1)).thenReturn(Optional.of(clientePrueba));
-        when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1)).thenReturn(Optional.empty());
-
-        ClienteResponse resultado = clienteService.cambiarEstado(1, EstadoCliente.MOROSO);
-
-        assertEquals(EstadoCliente.MOROSO, resultado.getEstado());
-    }
-
-    @Test
     @DisplayName("cambiarEstado no debe poder activar a un socio a mano: eso lo hace un pago")
     void cambiarEstado_conActivo_deberiaLanzarExcepcion() {
         // Sin esta regla, este endpoint esquiva las dos validaciones de dinero de la Fase 1
@@ -208,20 +198,32 @@ class ClienteServiceTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
                 clienteService.cambiarEstado(1, EstadoCliente.ACTIVO));
 
-        assertTrue(ex.getMessage().contains("no se activa a mano"));
+        assertTrue(ex.getMessage().contains("INACTIVO"));
         verify(clienteRepository, never()).save(any(Cliente.class));
     }
 
     @Test
-    @DisplayName("darDeBaja debe aplicar Soft Delete pasando el estado a INACTIVO")
-    void darDeBaja_deberiaCambiarEstadoAInactivo() {
+    @DisplayName("cambiarEstado tampoco acepta MOROSO: eso lo calcula el vencimiento")
+    void cambiarEstado_conMoroso_deberiaLanzarExcepcion() {
+        assertThrows(IllegalArgumentException.class, () ->
+                clienteService.cambiarEstado(1, EstadoCliente.MOROSO));
+
+        verify(clienteRepository, never()).save(any(Cliente.class));
+    }
+
+    @Test
+    @DisplayName("Inhabilitar a un socio es un cambio de estado a INACTIVO, nunca un borrado")
+    void cambiarEstado_aInactivo_deberiaInhabilitarSinBorrar() {
         clientePrueba.setEstado(EstadoCliente.ACTIVO);
         when(clienteRepository.findById(1)).thenReturn(Optional.of(clientePrueba));
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1))
+                .thenReturn(Optional.empty());
 
-        clienteService.darDeBaja(1);
+        clienteService.cambiarEstado(1, EstadoCliente.INACTIVO);
 
         assertEquals(EstadoCliente.INACTIVO, clientePrueba.getEstado());
+        verify(clienteRepository, never()).delete(any(Cliente.class));
         verify(clienteRepository, times(1)).save(clientePrueba);
     }
 

@@ -14,22 +14,7 @@ public interface PlanService {
      */
     List<Plan> obtenerTodos();
 
-    /**
-     * Busca un plan por su ID único.
-     * @param id Identificador del plan.
-     * @return El plan encontrado.
-     * @throws RuntimeException si no existe.
-     */
-    Plan obtenerPorId(Integer id);
 
-    /**
-     * Busca planes cuyo nombre contenga el texto dado, sin distinguir mayúsculas.
-     * @param nombre Fragmento del nombre a buscar.
-     * @return Los planes que coincidan; lista vacía si no hay ninguno. No lanza
-     *         excepción: "no encontré nada" es un resultado válido de una búsqueda,
-     *         no un error.
-     */
-    List<Plan> buscarPorNombre(String nombre);
 
     /**
      * Registra un nuevo plan en el catálogo.

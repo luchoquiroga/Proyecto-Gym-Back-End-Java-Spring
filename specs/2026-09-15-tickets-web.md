@@ -186,8 +186,10 @@ Hoy el botón "Registrar Socio" no hace nada. ADMIN y GERENCIA.
   edita desde el mostrador porque es la identidad de login del socio en el
   portal y cambiárselo le sacaría el acceso sin que se entere. El formulario no
   debe ofrecer ni email ni contraseña.
-- **Baja** (`DELETE /clientes/{id}`) es lógica: pasa a `INACTIVO`, no borra.
-  La UI tiene que decir "dar de baja", no "eliminar".
+- **Baja** (`PATCH /clientes/{id}/estado` con `{"estado":"INACTIVO"}`): pone al
+  socio en INACTIVO y nunca borra la fila. La UI tiene que decir "dar de baja",
+  no "eliminar" — y no hay ningún DELETE que llamar, porque no existe. El mismo
+  endpoint rechaza `ACTIVO` y `MOROSO`: esos los determina el sistema.
 - **Buscar** (`GET /clientes/buscar?nombre=`) ahora devuelve una **lista** con
   coincidencia parcial insensible a mayúsculas, no un único resultado. Hoy
   `ClientesPage` filtra en memoria sobre la lista completa: con paginación eso
@@ -199,9 +201,10 @@ Hoy el botón "Registrar Socio" no hace nada. ADMIN y GERENCIA.
 No existe ninguna pantalla. Es lo que cierra la Fase 5.
 
 - Alta (`POST /usuarios`: nombre, contrasena, rol).
-- **Baja lógica** (`DELETE /usuarios/{id}`): desactiva, no borra. La cuenta deja
-  de poder entrar y pierde sus sesiones.
-- **Reactivar** (`PATCH /usuarios/{id}/activo` con `{"activo": true}`): hace
+- **Baja y reactivación, un solo endpoint** (`PATCH /usuarios/{id}/activo` con
+  `{"activo": false}` o `true`). Desactivar no borra: la cuenta deja de poder
+  entrar y pierde sus sesiones. No hay `DELETE` que llamar.
+- **Reactivar** con ese mismo endpoint hace
   falta de verdad, no es un extra. Una cuenta dada de baja sigue ocupando su
   nombre de login, así que si se dio de baja a la persona equivocada **no se
   puede arreglar creando otra igual**: hay que reactivar esa. El backend
@@ -258,8 +261,13 @@ son entidades distintas, con tablas, cookies y endpoints propios), así que:
 - Registro (`POST /clientes/registro`) con el **código de activación** que el
   staff le dio en persona (ver W6), más email y contraseña. No se identifica con
   nombre y teléfono: eso se cerró por ser adivinable.
-- El portal tiene que leer sus datos reales (`GET /clientes/{id}` y
-  `GET /pagos/cliente/{id}`, ambos permitidos al propio dueño).
+- El portal lee sus datos reales de `GET /clientes/{id}`, que el propio socio
+  puede consultar y que ya trae estado, `fechaVencimiento` y `planVigente` —
+  alcanza para la pantalla completa del alcance.
+- **Los pagos no**: desde la Fase 7 toda lectura de pagos es de ADMIN, así que
+  un socio recibe 403 en `/pagos/{id}` y `/pagos/cliente/{id}`. Es deliberado,
+  no un bug: el portal no muestra comprobantes. Si alguna vez tiene que
+  mostrarlos, primero se reabre esa rama en el backend.
 
 **Además, un arreglo conceptual:** `types/auth.ts` declara
 `RolUsuario = 'ADMIN' | 'CLIENTE' | 'GERENCIA'`, mezclando en un tipo lo que el

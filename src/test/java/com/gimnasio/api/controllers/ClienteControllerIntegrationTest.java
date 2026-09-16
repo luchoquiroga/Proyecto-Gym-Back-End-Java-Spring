@@ -431,11 +431,24 @@ class ClienteControllerIntegrationTest {
 
         mockMvc.perform(patch("/api/v1/clientes/" + cliente.getId() + "/estado")
                         .header("Authorization", "Bearer " + tokenAdmin)
-                        .param("nuevoEstado", "MOROSO"))
+                        .param("nuevoEstado", "INACTIVO"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.estado").value("MOROSO"))
+                .andExpect(jsonPath("$.estado").value("INACTIVO"))
                 .andExpect(jsonPath("$.contrasena").doesNotExist())
                 .andExpect(jsonPath("$.codigoActivacion").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("PATCH /clientes/{id}/estado tampoco acepta MOROSO: lo calcula el vencimiento")
+    void cambiarEstado_aMoroso_deberiaDevolver400() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Nilda", "Paz", "555-P10", null, null, EstadoCliente.INACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(patch("/api/v1/clientes/" + cliente.getId() + "/estado")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .param("nuevoEstado", "MOROSO"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

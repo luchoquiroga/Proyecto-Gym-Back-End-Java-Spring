@@ -162,16 +162,6 @@ public class UsuarioController {
     }
 
     /**
-     * Baja lógica de una cuenta de staff: queda inactiva y pierde sus sesiones, pero la fila
-     * se conserva (si no, se perdería el autor de los pagos que cobró; ver V5).
-     */
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> darDeBaja(@PathVariable Integer id, @AuthenticationPrincipal AuthPrincipal principal) {
-        usuarioService.darDeBaja(id, principal.id());
-        return ResponseEntity.noContent().build();
-    }
-
-    /**
      * Activa o desactiva una cuenta. Es la única forma de revertir una baja: el nombre de
      * login sigue ocupado por esa fila, así que no se puede recrear la cuenta.
      */

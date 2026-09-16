@@ -167,16 +167,4 @@ class PagoServiceTest {
         verify(pagoRepository, never()).save(any(Pago.class));
     }
 
-    @Test
-    @DisplayName("Debe buscar pagos por fragmento de nombre de cliente")
-    void buscarPagosPorNombreCliente_deberiaRetornarLista() {
-        Pago pago = new Pago(1, clienteInactivo, planMensual, 32500.0, LocalDate.now(), LocalDate.now().plusDays(30), cajero);
-        when(pagoRepository.findByClienteNombreContainingIgnoreCase("Lucía")).thenReturn(List.of(pago));
-
-        List<Pago> resultados = pagoService.buscarPagosPorNombreCliente("Lucía");
-
-        assertEquals(1, resultados.size());
-        assertEquals("Lucía", resultados.get(0).getCliente().getNombre());
-        verify(pagoRepository, times(1)).findByClienteNombreContainingIgnoreCase("Lucía");
-    }
 }

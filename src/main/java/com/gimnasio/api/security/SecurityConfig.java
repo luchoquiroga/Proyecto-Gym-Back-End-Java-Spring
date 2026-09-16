@@ -75,7 +75,6 @@ public class SecurityConfig {
                         // Solo ADMIN: gestión de cuentas de usuario, catálogo de planes (altas/bajas) y dashboard
                         .requestMatchers(HttpMethod.GET, "/api/v1/usuarios").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/usuarios").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/usuarios/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/usuarios/*/activo").hasRole("ADMIN")
                         // Reset administrativo de la clave de OTRA cuenta: sin pedir la anterior,
                         // porque el ADMIN no la sabe. El service rechaza usarlo contra uno mismo.
@@ -101,7 +100,13 @@ public class SecurityConfig {
                         // el listado y la búsqueda de pagos quedan reservados a ADMIN (el propio
                         // Cliente puede ver SUS pagos vía GET /{id} y /cliente/{clienteId}, que
                         // resuelve el controller con un chequeo de ownership, no una regla acá)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/pagos", "/api/v1/pagos/buscar")
+                        // TODA lectura de pagos es de ADMIN, incluidos el detalle y los pagos de un
+                        // socio puntual. Hasta la Fase 7 esos dos los resolvía un chequeo de
+                        // ownership en el controller que dejaba pasar al CLIENTE dueño; se cerró
+                        // porque el portal del socio no muestra pagos, así que era una rama sin
+                        // consumidor. Al ser regla de ruta, ya no hay ninguna comparación de ids
+                        // entre `usuarios` y `clientes`, que son tablas con secuencias que se solapan.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/pagos", "/api/v1/pagos/**")
                                 .hasRole("ADMIN")
                         // Solo ADMIN: anular un pago es tocar caja ya registrada. GERENCIA cobra,
                         // y si se equivoca avisa. Va ANTES de la regla de POST /api/v1/pagos porque
@@ -117,7 +122,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/clientes").hasAnyRole("ADMIN", "GERENCIA")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/clientes/**").hasAnyRole("ADMIN", "GERENCIA")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/clientes/**").hasAnyRole("ADMIN", "GERENCIA")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/clientes/**").hasAnyRole("ADMIN", "GERENCIA")
                         // ADMIN o GERENCIA: operación diaria (clientes, pagos, consulta de planes)
                         .anyRequest().authenticated()
                 )

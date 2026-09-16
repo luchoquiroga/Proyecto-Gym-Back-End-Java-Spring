@@ -59,12 +59,6 @@ public interface PagoService {
      */
     List<Pago> obtenerPagosPorCliente(Integer clienteId);
 
-    /**
-     * Busca los pagos filtrando por el nombre del cliente (para la interfaz de usuario).
-     * @param nombreCliente Nombre o fragmento de nombre del cliente.
-     * @return Lista de pagos que coincidan.
-     */
-    List<Pago> buscarPagosPorNombreCliente(String nombreCliente);
 
     /**
      * Registra un nuevo pago en el sistema y calcula automáticamente la fecha de

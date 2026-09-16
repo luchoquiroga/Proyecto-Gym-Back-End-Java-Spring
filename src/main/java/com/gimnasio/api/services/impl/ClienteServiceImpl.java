@@ -39,15 +39,10 @@ public class ClienteServiceImpl implements ClienteService {
     private final PagoRepository pagoRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<Cliente> obtenerTodos() {
-        return clienteRepository.findAll();
-    }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Cliente obtenerPorId(Integer id) {
+    // Privado: dejó de estar en la interfaz al sacarse el último consumidor externo.
+    // Adentro lo usan actualizar(), cambiarEstado() y el alta de credenciales.
+    private Cliente obtenerPorId(Integer id) {
         return clienteRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Cliente no encontrado con id: " + id));
     }
@@ -112,9 +107,15 @@ public class ClienteServiceImpl implements ClienteService {
         // Si alguna vez hace falta un socio de cortesía, eso es un pago de importe cero
         // contra un plan de cortesía -- que queda registrado y auditado -- y no un estado
         // que aparece sin que nadie sepa quién lo puso.
-        if (nuevoEstado == EstadoCliente.ACTIVO) {
+        // MOROSO tampoco: el sistema lo calcula solo, en las dos direcciones. Un pago
+        // válido activa al socio, anular ese pago le recalcula el estado en el momento, y
+        // el scheduler lo escala según los días vencidos. Escribirlo a mano es pisar un
+        // cálculo que la próxima corrida puede contradecir. Lo único que hace falta decidir
+        // a mano es "este socio ya no viene más".
+        if (nuevoEstado != EstadoCliente.INACTIVO) {
             throw new IllegalArgumentException(
-                    "Un socio no se activa a mano: se activa registrándole un pago válido.");
+                    "El único estado que se puede fijar a mano es INACTIVO (inhabilitar al socio): "
+                            + "ACTIVO lo determina un pago válido y MOROSO lo calcula el vencimiento.");
         }
 
         Cliente cliente = obtenerPorId(id);
@@ -123,14 +124,6 @@ public class ClienteServiceImpl implements ClienteService {
         return ClienteResponse.desde(guardado, ultimoPago(guardado.getId()));
     }
 
-    @Override
-    @Transactional
-    public void darDeBaja(Integer id) {
-        // Soft delete (baja lógica): no borramos el registro de la BD para preservar historial de pagos
-        Cliente cliente = obtenerPorId(id);
-        cliente.setEstado(EstadoCliente.INACTIVO);
-        clienteRepository.save(cliente);
-    }
 
     @Override
     @Transactional
