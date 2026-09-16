@@ -390,6 +390,47 @@ class UsuarioControllerIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("Un ADMIN dado de baja no cuenta como administrador disponible")
+    void desactivar_conOtroAdminYaDadoDeBaja_deberiaRechazarLaBajaDelUltimo() throws Exception {
+        // Este caso solo se puede probar contra la base: lo que distingue "hay dos ADMIN" de
+        // "hay dos ADMIN pero uno inactivo" vive en la consulta countByRolAndActivoTrue, no en
+        // el service, así que con el repositorio mockeado no se ejerce nunca.
+        //
+        // Y para llegar hasta la regla hay que pasar por una puerta estrecha: si quien llama
+        // es un ADMIN activo y el objetivo también, por definición hay dos activos y la regla
+        // no dispara; y si el ADMIN intenta darse de baja a sí mismo, lo frena antes la regla
+        // de auto-baja. La única forma real es la de acá abajo, que además documenta el hueco
+        // aceptado del diseño: el access token de una cuenta recién dada de baja sigue siendo
+        // válido hasta que expira, porque el filtro no consulta la base.
+        String tokenAdmin = tokenDeAdmin();
+        Integer idSuplente = crearStaff(tokenAdmin, "adminSuplente", "claveAdmin123", "ADMIN");
+        String tokenSuplente = extraerCampo(login("adminSuplente", "claveAdmin123"), "accessToken");
+        Integer idAdminPrincipal = usuarioRepository.findByNombre("admin").orElseThrow().getId();
+
+        // Con dos ADMIN activos, dar de baja a uno se puede.
+        mockMvc.perform(patch("/api/v1/usuarios/" + idSuplente + "/activo")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":false}"))
+                .andExpect(status().isOk());
+
+        // El suplente ya está inactivo, pero su token sigue vivo. Con él intenta dar de baja
+        // al que queda: en la tabla hay dos filas ADMIN, activa una sola, y es esa.
+        mockMvc.perform(patch("/api/v1/usuarios/" + idAdminPrincipal + "/activo")
+                        .header("Authorization", "Bearer " + tokenSuplente)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":false}"))
+                .andExpect(status().isBadRequest())
+                // Se fija el mensaje y no solo el 400: sin esto, el test también pasaría si
+                // lo rechazara cualquier otra regla (la de auto-baja, una validación), o sea
+                // que pasaría por el motivo equivocado sin que nadie se enterara.
+                .andExpect(jsonPath("$.mensaje").value(
+                        org.hamcrest.Matchers.containsString("último administrador")));
+
+        assertTrue(usuarioRepository.findById(idAdminPrincipal).orElseThrow().isActivo());
+    }
+
     private String tokenDeAdmin() throws Exception {
         return extraerCampo(login("admin", "admin123456789"), "accessToken");
     }

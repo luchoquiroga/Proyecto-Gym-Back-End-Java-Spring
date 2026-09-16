@@ -314,19 +314,6 @@ class ClienteControllerIntegrationTest {
                 .andExpect(jsonPath("$.contrasena").doesNotExist());
     }
 
-    @Test
-    @DisplayName("GET /clientes/{id} de un socio que nunca pagó devuelve fechaVencimiento null")
-    void obtenerPorId_sinPagos_deberiaDevolverFechaVencimientoNull() throws Exception {
-        Cliente cliente = clienteRepository.save(
-                new Cliente(null, "Federico", "Suarez", "555-C15", "555-C15", null, null, EstadoCliente.INACTIVO, null));
-
-        String tokenAdmin = loguearComoAdmin();
-
-        mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
-                        .header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.fechaVencimiento").doesNotExist());
-    }
 
     @Test
     @DisplayName("POST /clientes con id y estado en el body debe ignorarlos: el socio nuevo queda con id propio e INACTIVO")

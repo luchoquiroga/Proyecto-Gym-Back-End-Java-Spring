@@ -190,18 +190,6 @@ class UsuarioServiceTest {
         verify(usuarioRepository, never()).save(any(Usuario.class));
     }
 
-    @Test
-    @DisplayName("Un ADMIN ya dado de baja no cuenta como administrador disponible")
-    void darDeBaja_conOtroAdminInactivo_deberiaLanzarExcepcion() {
-        // El caso que el countByRol viejo dejaba pasar: dos filas ADMIN en la tabla, pero una
-        // inactiva, así que dar de baja a la otra dejaba el sistema sin nadie que lo administre.
-        when(usuarioRepository.findById(1)).thenReturn(Optional.of(usuarioAdmin));
-        when(usuarioRepository.countByRolAndActivoTrue(RolUsuario.ADMIN)).thenReturn(1L);
-
-        assertThrows(IllegalArgumentException.class, () -> usuarioService.cambiarActivo(1, false, 2));
-
-        assertTrue(usuarioAdmin.isActivo());
-    }
 
     @Test
     @DisplayName("Dar de baja a un ADMIN que no es el último ni quien lo pide debe desactivarlo y cerrar sus sesiones")

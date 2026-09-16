@@ -54,18 +54,6 @@ class ClienteServiceTest {
         clientePrueba = new Cliente(1, "Carlos", "Gómez", "123456789", "123456789", null, null, EstadoCliente.INACTIVO, null);
     }
 
-    @Test
-    @DisplayName("Debe crear un cliente con estado inicial INACTIVO")
-    void crear_deberiaGuardarClienteConEstadoInactivo() {
-        when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "123456789", null, null);
-        Cliente resultado = clienteService.crear(nuevo);
-
-        assertNotNull(resultado);
-        assertEquals(EstadoCliente.INACTIVO, resultado.getEstado());
-        verify(clienteRepository, times(1)).save(any(Cliente.class));
-    }
 
     @Test
     @DisplayName("Debe crear un cliente sin email ni contraseña (alta desde la app de escritorio)")

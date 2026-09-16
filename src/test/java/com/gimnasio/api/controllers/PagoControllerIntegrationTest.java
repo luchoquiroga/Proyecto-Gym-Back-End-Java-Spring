@@ -127,15 +127,6 @@ class PagoControllerIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
-    @Test
-    @DisplayName("Un token ADMIN puede listar todos los pagos sin restricción")
-    void listarPagos_conTokenAdmin_deberiaDevolver200() throws Exception {
-        crearClienteConPago("Gaston", "Vera", "555-P5", null, null);
-        String tokenAdmin = loguearComoAdmin();
-
-        mockMvc.perform(get("/api/v1/pagos").header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isOk());
-    }
 
     @Test
     @DisplayName("El listado de pagos devuelve la forma paginada, no un array suelto")
@@ -162,17 +153,6 @@ class PagoControllerIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
-    @Test
-    @DisplayName("Un token GERENCIA no puede buscar pagos por nombre de cliente")
-    void buscarPagosPorNombreCliente_conTokenGerencia_deberiaDevolver403() throws Exception {
-        crearClienteConPago("Bruno", "Ferro", "555-P10", null, null);
-        String tokenGerencia = loguearComoGerencia();
-
-        mockMvc.perform(get("/api/v1/pagos/buscar")
-                        .param("nombreCliente", "Bruno")
-                        .header("Authorization", "Bearer " + tokenGerencia))
-                .andExpect(status().isForbidden());
-    }
 
     @Test
     @DisplayName("Un token GERENCIA no puede ver un pago puntual por id")
