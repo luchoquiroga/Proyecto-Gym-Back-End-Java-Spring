@@ -29,6 +29,18 @@ public class Cliente {
     private String telefono;
 
     /**
+     * Documento de identidad, obligatorio y único. Es lo que distingue a dos socios que se
+     * llaman igual: sin esto, dos Juan Pérez son filas idénticas en cualquier listado, y el
+     * único diferenciador es el id, que nadie recuerda ni reconoce.
+     *
+     * Se guarda SIEMPRE normalizado (sin puntos, espacios ni guiones, en mayúsculas), y esa
+     * es la condición para que el UNIQUE sirva: '12.345.678' y '12345678' son la misma
+     * persona, y sobre el texto crudo la base dejaría entrar las dos.
+     */
+    @Column(nullable = false, unique = true, length = 20)
+    private String documento;
+
+    /**
      * Email para el login del cliente en el portal web. Nulo hasta que el cliente
      * complete su registro (dado de alta primero por el staff sin credenciales).
      */

@@ -23,8 +23,7 @@ Roles/principales que existen hoy:
 | POST | `` | ADMIN | crea un `Usuario` nuevo (alta de staff) |
 | PUT | `/cambiar-contrasena` | ADMIN, GERENCIA — **solo la propia** | 2026-09-15: antes era solo-ADMIN y elegía la cuenta por un `nombre` del body; ahora sale del `AuthPrincipal` y exige la contraseña actual. La regla es `hasAnyRole`, no el catch-all: bajo `.authenticated()` entraría un CLIENTE y su id se solaparía con el de un `Usuario` |
 | PUT | `/{id}/contrasena` | ADMIN | reset administrativo (el ADMIN no sabe la clave anterior). El service lo rechaza contra uno mismo: para la cuenta propia hay que usar `/cambiar-contrasena`, que pide la actual |
-| DELETE | `/{id}` | ADMIN | **baja lógica** (`activo = false`) + revoca las sesiones de esa cuenta; no borra la fila. No permite auto-darse de baja ni dar de baja al último ADMIN **activo** (`UsuarioServiceImpl.cambiarActivo`) |
-| PATCH | `/{id}/activo` | ADMIN | reactiva (o desactiva) una cuenta; única forma de revertir una baja, porque el nombre de login sigue ocupado por esa fila |
+| PATCH | `/{id}/activo` | ADMIN | **la única forma de dar de baja y de reactivar** una cuenta. Desactivar revoca sus sesiones y conserva la fila (si no, se perdería el autor de los pagos que cobró). No permite auto-darse de baja ni dar de baja al último ADMIN activo. 2026-09-16 (Fase 7): reemplaza al `DELETE /{id}`, que no borraba nada |
 
 ## `/api/v1/clientes` (staff + el propio cliente en algunos GET)
 
@@ -39,17 +38,15 @@ Roles/principales que existen hoy:
 | GET | `/{id}` | ADMIN, GERENCIA, o el propio CLIENTE (`principal.id() == id`) | chequeo en `ClienteController.obtenerPorId`, no en `SecurityConfig` |
 | POST | `` (alta) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado |
 | PUT | `/{id}` | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía editar cualquier registro) |
-| PATCH | `/{id}/estado` | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía auto-activarse sin pagar). **2026-09-15 (Fase 6): ya no acepta `ACTIVO`** — un socio se activa registrándole un pago válido, no con un cambio de estado a mano |
-| DELETE | `/{id}` | ADMIN, GERENCIA | **baja lógica**: pone `estado = INACTIVO` (`ClienteServiceImpl.darDeBaja`), nunca borra la fila, así que no choca con `pagos`. Agregado 2026-09-14, antes cualquier autenticado |
+| PATCH | `/{id}/estado` | ADMIN, GERENCIA | **inhabilitar a un socio; es la única baja que existe** y nunca borra la fila. 2026-09-16 (Fase 7): solo acepta `INACTIVO`. `ACTIVO` lo determina un pago válido (Fase 6) y `MOROSO` lo calcula el vencimiento, así que fijarlos a mano era pisar un cálculo automático |
 
 ## `/api/v1/pagos`
 
 | Método | Ruta | Quién puede | Notas |
 |---|---|---|---|
 | GET | `` (listado) | ADMIN | 2026-09-15: sacado a GERENCIA (ver Historial). Acepta `?desde=&hasta=` sobre la fecha de cobro, para desglosar las ganancias de un mes |
-| GET | `/buscar` | ADMIN | 2026-09-15: sacado a GERENCIA |
-| GET | `/cliente/{clienteId}` | ADMIN, o el propio CLIENTE dueño | chequeo en `PagoController.obtenerPagosPorCliente`; 2026-09-15 dejó de aceptar GERENCIA |
-| GET | `/{id}` | ADMIN, o el propio CLIENTE dueño del pago | agregado 2026-09-14, antes cualquier autenticado; chequeo en `PagoController.obtenerPorId` vía `pago.getCliente().getId()`; 2026-09-15 dejó de aceptar GERENCIA |
+| GET | `/cliente/{clienteId}` | ADMIN | 2026-09-16 (Fase 7): dejó de aceptar al CLIENTE dueño. Ahora es regla de ruta y no un chequeo a mano |
+| GET | `/{id}` | ADMIN | 2026-09-16 (Fase 7): dejó de aceptar al CLIENTE dueño. Ahora es regla de ruta y no un chequeo a mano |
 | POST | `/{id}/anulacion` | ADMIN | agregado 2026-09-15 (Fase 6): marca el pago como anulado con motivo obligatorio, quien anula sale del token. **No borra la fila y no existe editar un pago**: corregir un importe es anular y volver a cobrar. GERENCIA cobra pero no toca caja ya registrada |
 | POST | `` (registrar pago) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía registrarse pagos a sí mismo o a otros). Desde 2026-09-15 guarda `registrado_por` tomado del token (nunca del body) y rechaza montos menores al precio del plan |
 
@@ -57,7 +54,7 @@ Roles/principales que existen hoy:
 
 | Método | Ruta | Quién puede | Notas |
 |---|---|---|---|
-| GET | `` , `/{id}`, `/buscar` | cualquier autenticado | catálogo, lectura no sensible |
+| GET | `` (listado) | cualquier autenticado | catálogo, lectura no sensible. 2026-09-16 (Fase 7): se sacaron `/{id}` y `/buscar` — con un puñado de planes, el listado completo ya es la pantalla |
 | POST / PUT / DELETE | | ADMIN | |
 
 ## `/api/v1/dashboard/**`
@@ -71,6 +68,13 @@ Roles/principales que existen hoy:
 Público.
 
 ---
+
+> **Nada se borra:** después de la Fase 7 el único `DELETE` de la API es el de
+> planes, que sí elimina de verdad (y se rechaza con un mensaje propio si el plan
+> ya tiene pagos). Las bajas de socios y de staff son cambios de estado, con la
+> misma forma en los dos recursos: `PATCH /usuarios/{id}/activo` y
+> `PATCH /clientes/{id}/estado`. Un `DELETE` que no borra es un contrato que
+> miente, y obliga a aclarar en cada pantalla que "dar de baja" no elimina.
 
 > **Regla de los dos roles de staff:** GERENCIA opera socios y cobra; ADMIN es
 > el único que ve datos monetarios. Por eso GERENCIA conserva `POST /pagos`
@@ -100,6 +104,16 @@ El gap anterior (identidad de `/registro` basada en datos adivinables) se cerró
 el 2026-09-14, ver Historial.
 
 ## Historial de incidentes (para que no se repitan)
+
+- **2026-09-16**: no fue un incidente sino una limpieza, pero deja una lección
+  del mismo tipo. Los chequeos de ownership de `GET /pagos/{id}` y
+  `/pagos/cliente/{clienteId}` dejaban leer sus pagos al CLIENTE dueño, pero el
+  portal del socio nunca los mostró: era una rama de autorización sin ningún
+  consumidor, o sea código que nadie ejercía y que igual había que releer cada
+  vez que cambiaba un rol. Se cerró (los dos endpoints son de ADMIN por regla de
+  ruta) y, de paso, desapareció de `PagoController` la última comparación de ids
+  entre `usuarios` y `clientes`, que es la trampa de la Fase 2. Si el portal
+  algún día muestra comprobantes, se reabre con su test.
 
 - **2026-09-15**: dar de baja a un empleado no funcionaba contra la base. La
   matriz decía que ADMIN podía `DELETE /api/v1/usuarios/{id}` y el código lo

@@ -36,12 +36,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Tests de integración del scoping por dueño en /api/v1/pagos: un Cliente solo
- * puede ver sus propios pagos, nunca los de otro, y no puede listar el total.
- * GERENCIA opera socios y cobra, pero no ve datos monetarios: toda lectura de
- * pagos (listado, búsqueda, por id, por cliente) queda reservada a ADMIN, salvo
- * que el propio Cliente dueño consulte su id o su cliente/{id}. Registrar un
- * pago (POST) sigue permitido para ADMIN y GERENCIA.
+ * Tests de integración de /api/v1/pagos. Desde la Fase 7, <b>toda</b> lectura de pagos
+ * es de ADMIN: el listado, el detalle y los pagos de un socio puntual. Ni GERENCIA
+ * —que cobra pero no ve datos monetarios— ni el propio socio dueño pueden leerlos, y
+ * varios tests de acá fijan ese 403 para que no se reabra sin querer. Registrar un pago
+ * (POST) sigue permitido para ADMIN y GERENCIA; anularlo es solo de ADMIN.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -67,25 +66,40 @@ class PagoControllerIntegrationTest {
     private UsuarioRepository usuarioRepository;
 
     @Test
-    @DisplayName("Un token de Cliente puede ver sus propios pagos")
-    void obtenerPagosPorCliente_conTokenPropio_deberiaDevolver200() throws Exception {
+    @DisplayName("Un socio no puede ver sus propios pagos: toda lectura de pagos es de ADMIN")
+    void obtenerPagosPorCliente_conTokenPropio_deberiaDevolver403() throws Exception {
+        // El 403 es deliberado, no una regresion: el portal del socio muestra estado,
+        // vencimiento y datos de contacto, no pagos (ARQUITECTURA-APPS.md 2.1). La rama de
+        // ownership se cerro en la Fase 7 por ser superficie sin ningun consumidor. Si
+        // algun dia el portal muestra comprobantes, se reabre con su propio test.
         Cliente cliente = crearClienteConPago("Laura", "Diaz", "555-P1", "laura.pago@test.com", "claveLaura123");
         String token = loguearComoCliente("laura.pago@test.com", "claveLaura123");
 
         mockMvc.perform(get("/api/v1/pagos/cliente/" + cliente.getId()).header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
     }
 
     @Test
-    @DisplayName("La respuesta de un pago no expone quién lo cobró, ni siquiera al propio dueño")
-    void obtenerPagoPorId_conTokenPropio_noDeberiaExponerRegistradoPor() throws Exception {
+    @DisplayName("Un socio tampoco puede leer el detalle de un pago suyo")
+    void obtenerPagoPorId_conTokenPropio_deberiaDevolver403() throws Exception {
         Cliente cliente = crearClienteConPago("Yamila", "Ponce", "555-P15", "yamila.pago@test.com", "claveYamila123");
-        Pago pago = pagoRepository.findAll().stream()
-                .filter(p -> p.getCliente().getId().equals(cliente.getId()))
-                .findFirst().orElseThrow();
+        Pago pago = pagoRepository.findByClienteId(cliente.getId()).get(0);
         String token = loguearComoCliente("yamila.pago@test.com", "claveYamila123");
 
         mockMvc.perform(get("/api/v1/pagos/" + pago.getId()).header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("La respuesta de un pago no expone quién lo cobró")
+    void obtenerPagoPorId_conTokenAdmin_noDeberiaExponerRegistradoPor() throws Exception {
+        // registrado_por es auditoria interna: existe para saber quien toco la caja, no para
+        // mostrarse. Se chequea con token ADMIN porque ya es el unico que puede leer pagos.
+        Cliente cliente = crearClienteConPago("Ivan", "Ponce", "555-P16", null, null);
+        Pago pago = pagoRepository.findByClienteId(cliente.getId()).get(0);
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/pagos/" + pago.getId()).header("Authorization", "Bearer " + tokenAdmin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.registradoPor").doesNotExist())
                 .andExpect(jsonPath("$.cliente.id").value(cliente.getId()))
@@ -113,15 +127,6 @@ class PagoControllerIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
-    @Test
-    @DisplayName("Un token ADMIN puede listar todos los pagos sin restricción")
-    void listarPagos_conTokenAdmin_deberiaDevolver200() throws Exception {
-        crearClienteConPago("Gaston", "Vera", "555-P5", null, null);
-        String tokenAdmin = loguearComoAdmin();
-
-        mockMvc.perform(get("/api/v1/pagos").header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isOk());
-    }
 
     @Test
     @DisplayName("El listado de pagos devuelve la forma paginada, no un array suelto")
@@ -148,17 +153,6 @@ class PagoControllerIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
-    @Test
-    @DisplayName("Un token GERENCIA no puede buscar pagos por nombre de cliente")
-    void buscarPagosPorNombreCliente_conTokenGerencia_deberiaDevolver403() throws Exception {
-        crearClienteConPago("Bruno", "Ferro", "555-P10", null, null);
-        String tokenGerencia = loguearComoGerencia();
-
-        mockMvc.perform(get("/api/v1/pagos/buscar")
-                        .param("nombreCliente", "Bruno")
-                        .header("Authorization", "Bearer " + tokenGerencia))
-                .andExpect(status().isForbidden());
-    }
 
     @Test
     @DisplayName("Un token GERENCIA no puede ver un pago puntual por id")
@@ -314,7 +308,7 @@ class PagoControllerIntegrationTest {
     @DisplayName("Un socio sin pagos no tiene plan vigente ni vencimiento")
     void obtenerCliente_sinPagos_deberiaTraerPlanVigenteNulo() throws Exception {
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, "Elsa", "Mota", "555-P22", null, null, EstadoCliente.INACTIVO, null));
+                new Cliente(null, "Elsa", "Mota", "555-P22", "555-P22", null, null, EstadoCliente.INACTIVO, null));
         String tokenAdmin = loguearComoAdmin();
 
         mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
@@ -497,7 +491,7 @@ class PagoControllerIntegrationTest {
         // El teléfono ya es único por test y cabe en el VARCHAR(10) de codigo_activacion,
         // así que sirve como código de activación de prueba sin riesgo de colisión.
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, nombre, apellido, telefono, null, null, EstadoCliente.ACTIVO, telefono));
+                new Cliente(null, nombre, apellido, telefono, telefono, null, null, EstadoCliente.ACTIVO, telefono));
 
         if (email != null) {
             mockMvc.perform(post("/api/v1/clientes/registro")

@@ -99,11 +99,6 @@ public class PagoServiceImpl implements PagoService {
         return pagoRepository.findByClienteId(clienteId);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<Pago> buscarPagosPorNombreCliente(String nombreCliente) {
-        return pagoRepository.findByClienteNombreContainingIgnoreCase(nombreCliente);
-    }
 
     @Override
     @Transactional

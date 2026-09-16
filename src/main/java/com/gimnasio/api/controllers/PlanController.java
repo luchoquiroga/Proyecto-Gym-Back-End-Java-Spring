@@ -30,18 +30,6 @@ public class PlanController {
         return ResponseEntity.ok(planes);
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<PlanResponse> obtenerPorId(@PathVariable Integer id) {
-        return ResponseEntity.ok(PlanResponse.desde(planService.obtenerPorId(id)));
-    }
-
-    @GetMapping("/buscar")
-    public ResponseEntity<List<PlanResponse>> buscarPorNombre(@RequestParam String nombre) {
-        return ResponseEntity.ok(planService.buscarPorNombre(nombre).stream()
-                .map(PlanResponse::desde)
-                .toList());
-    }
-
     @PostMapping
     public ResponseEntity<PlanResponse> crear(@Valid @RequestBody PlanRequest request) {
         Plan plan = new Plan(null, request.getNombre(), request.getPrecio(), request.getDuracion());

@@ -94,12 +94,6 @@ public class ClienteController {
         return ResponseEntity.ok(clienteService.cambiarEstado(id, nuevoEstado));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> darDeBaja(@PathVariable Integer id) {
-        clienteService.darDeBaja(id);
-        return ResponseEntity.noContent().build();
-    }
-
     @PostMapping("/registro")
     public ResponseEntity<?> registro(@Valid @RequestBody ClienteRegistroRequest request) {
         clienteService.registrarCredenciales(

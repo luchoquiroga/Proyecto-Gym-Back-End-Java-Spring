@@ -3,6 +3,7 @@ package com.gimnasio.api.services.impl;
 import com.gimnasio.api.dto.ClienteRequest;
 import com.gimnasio.api.dto.ClienteResponse;
 import com.gimnasio.api.dto.PaginaResponse;
+import com.gimnasio.api.exceptions.RecursoDuplicadoException;
 import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.Pago;
@@ -34,20 +35,18 @@ public class ClienteServiceImpl implements ClienteService {
     private static final String ALFABETO_CODIGO_ACTIVACION = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int LARGO_CODIGO_ACTIVACION = 8;
     private static final SecureRandom RANDOM = new SecureRandom();
+    // Ya normalizado, o sea sin puntos ni guiones. Un DNI argentino tiene 7 u 8 dígitos;
+    // seis es el piso que deja pasar documentos extranjeros cortos sin aceptar un typo.
+    private static final int LARGO_MINIMO_DOCUMENTO = 6;
 
     private final ClienteRepository clienteRepository;
     private final PagoRepository pagoRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<Cliente> obtenerTodos() {
-        return clienteRepository.findAll();
-    }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Cliente obtenerPorId(Integer id) {
+    // Privado: dejó de estar en la interfaz al sacarse el último consumidor externo.
+    // Adentro lo usan actualizar(), cambiarEstado() y el alta de credenciales.
+    private Cliente obtenerPorId(Integer id) {
         return clienteRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Cliente no encontrado con id: " + id));
     }
@@ -61,10 +60,17 @@ public class ClienteServiceImpl implements ClienteService {
             throw new IllegalArgumentException("Ya existe un cliente registrado con el email: " + request.getEmail());
         }
 
+        String documento = normalizarDocumento(request.getDocumento());
+        clienteRepository.findByDocumento(documento).ifPresent(otro -> {
+            throw new RecursoDuplicadoException(
+                    "Ya existe un socio registrado con el documento " + documento + ".");
+        });
+
         Cliente cliente = new Cliente();
         cliente.setNombre(request.getNombre());
         cliente.setApellido(request.getApellido());
         cliente.setTelefono(request.getTelefono());
+        cliente.setDocumento(documento);
         cliente.setEmail(request.getEmail());
 
         // Por regla de negocio, un cliente recién registrado siempre inicia INACTIVO hasta
@@ -94,9 +100,22 @@ public class ClienteServiceImpl implements ClienteService {
         // acceso a su cuenta sin que se entere. La contraseña tampoco: la define el propio
         // socio en /registro. Ambos campos existen en ClienteRequest porque el alta sí los
         // usa, y acá se ignoran deliberadamente (ver el javadoc de ClienteRequest).
+        // El documento SÍ se puede corregir, a diferencia del email: un documento mal
+        // tipeado en el alta hay que poder arreglarlo, y el único que puede es el staff.
+        String documento = normalizarDocumento(request.getDocumento());
+        clienteRepository.findByDocumento(documento).ifPresent(otro -> {
+            // Que el dueño del documento sea este mismo socio no es un conflicto: pasa en
+            // cualquier edición donde el documento no se toca.
+            if (!otro.getId().equals(clienteExistente.getId())) {
+                throw new RecursoDuplicadoException(
+                        "Ya existe otro socio registrado con el documento " + documento + ".");
+            }
+        });
+
         clienteExistente.setNombre(request.getNombre());
         clienteExistente.setApellido(request.getApellido());
         clienteExistente.setTelefono(request.getTelefono());
+        clienteExistente.setDocumento(documento);
 
         Cliente guardado = clienteRepository.save(clienteExistente);
         return ClienteResponse.desde(guardado, ultimoPago(guardado.getId()));
@@ -112,9 +131,15 @@ public class ClienteServiceImpl implements ClienteService {
         // Si alguna vez hace falta un socio de cortesía, eso es un pago de importe cero
         // contra un plan de cortesía -- que queda registrado y auditado -- y no un estado
         // que aparece sin que nadie sepa quién lo puso.
-        if (nuevoEstado == EstadoCliente.ACTIVO) {
+        // MOROSO tampoco: el sistema lo calcula solo, en las dos direcciones. Un pago
+        // válido activa al socio, anular ese pago le recalcula el estado en el momento, y
+        // el scheduler lo escala según los días vencidos. Escribirlo a mano es pisar un
+        // cálculo que la próxima corrida puede contradecir. Lo único que hace falta decidir
+        // a mano es "este socio ya no viene más".
+        if (nuevoEstado != EstadoCliente.INACTIVO) {
             throw new IllegalArgumentException(
-                    "Un socio no se activa a mano: se activa registrándole un pago válido.");
+                    "El único estado que se puede fijar a mano es INACTIVO (inhabilitar al socio): "
+                            + "ACTIVO lo determina un pago válido y MOROSO lo calcula el vencimiento.");
         }
 
         Cliente cliente = obtenerPorId(id);
@@ -123,14 +148,6 @@ public class ClienteServiceImpl implements ClienteService {
         return ClienteResponse.desde(guardado, ultimoPago(guardado.getId()));
     }
 
-    @Override
-    @Transactional
-    public void darDeBaja(Integer id) {
-        // Soft delete (baja lógica): no borramos el registro de la BD para preservar historial de pagos
-        Cliente cliente = obtenerPorId(id);
-        cliente.setEstado(EstadoCliente.INACTIVO);
-        clienteRepository.save(cliente);
-    }
 
     @Override
     @Transactional
@@ -152,6 +169,23 @@ public class ClienteServiceImpl implements ClienteService {
         // De un solo uso: una vez canjeado no debe volver a servir para reclamar la cuenta.
         cliente.setCodigoActivacion(null);
         return clienteRepository.save(cliente);
+    }
+
+    /**
+     * Deja el documento en su forma canónica: sin puntos, espacios ni guiones, y en
+     * mayúsculas (los pasaportes llevan letras). Es lo que hace que la restricción de
+     * unicidad sirva para algo: '12.345.678' y '12345678' son la misma persona, y sobre el
+     * texto tal cual se escribió la base los aceptaría como dos socios distintos, que es
+     * justo el problema que el documento viene a resolver.
+     */
+    private String normalizarDocumento(String documento) {
+        String normalizado = documento == null ? "" : documento.replaceAll("[.\\-\\s]", "").toUpperCase();
+        if (normalizado.length() < LARGO_MINIMO_DOCUMENTO) {
+            throw new IllegalArgumentException(
+                    "El documento es demasiado corto: necesita al menos " + LARGO_MINIMO_DOCUMENTO
+                            + " caracteres sin contar puntos ni guiones.");
+        }
+        return normalizado;
     }
 
     private String generarCodigoActivacionUnico() {

@@ -208,8 +208,8 @@ class UsuarioControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Dar de baja a un usuario que tiene sesiones abiertas no debe fallar con 409")
-    void darDeBaja_conRefreshTokensEnLaBase_deberiaFuncionar() throws Exception {
+    @DisplayName("Desactivar a un usuario que tiene sesiones abiertas no debe fallar con 409")
+    void desactivar_conRefreshTokensEnLaBase_deberiaFuncionar() throws Exception {
         // El caso que fallaba: las filas de refresh_tokens de un empleado que se logueó alguna
         // vez no se borran nunca (revocar solo las marca) y la FK no tiene cascada, así que el
         // DELETE moría con una violación de integridad. Ahora la baja es lógica y la fila queda.
@@ -219,9 +219,12 @@ class UsuarioControllerIntegrationTest {
         MvcResult loginStaff = login("staffConSesion", "claveStaff123");
         Cookie cookieStaff = loginStaff.getResponse().getCookie("refreshToken");
 
-        mockMvc.perform(delete("/api/v1/usuarios/" + idStaff)
-                        .header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(patch("/api/v1/usuarios/" + idStaff + "/activo")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activo").value(false));
 
         assertFalse(usuarioRepository.findById(idStaff).orElseThrow().isActivo());
 
@@ -242,9 +245,12 @@ class UsuarioControllerIntegrationTest {
         String tokenAdmin = tokenDeAdmin();
         Integer idStaff = crearStaff(tokenAdmin, "staffAReactivar", "claveStaff123", "GERENCIA");
 
-        mockMvc.perform(delete("/api/v1/usuarios/" + idStaff)
-                        .header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(patch("/api/v1/usuarios/" + idStaff + "/activo")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activo").value(false));
 
         mockMvc.perform(patch("/api/v1/usuarios/" + idStaff + "/activo")
                         .header("Authorization", "Bearer " + tokenAdmin)
@@ -359,9 +365,12 @@ class UsuarioControllerIntegrationTest {
         String tokenAdmin = tokenDeAdmin();
         Integer idStaff = crearStaff(tokenAdmin, "staffListado", "claveStaff123", "GERENCIA");
 
-        mockMvc.perform(delete("/api/v1/usuarios/" + idStaff)
-                        .header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(patch("/api/v1/usuarios/" + idStaff + "/activo")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activo").value(false));
 
         mockMvc.perform(get("/api/v1/usuarios")
                         .header("Authorization", "Bearer " + tokenAdmin)
@@ -379,6 +388,47 @@ class UsuarioControllerIntegrationTest {
 
         mockMvc.perform(get("/api/v1/usuarios").header("Authorization", "Bearer " + tokenGerencia))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Un ADMIN dado de baja no cuenta como administrador disponible")
+    void desactivar_conOtroAdminYaDadoDeBaja_deberiaRechazarLaBajaDelUltimo() throws Exception {
+        // Este caso solo se puede probar contra la base: lo que distingue "hay dos ADMIN" de
+        // "hay dos ADMIN pero uno inactivo" vive en la consulta countByRolAndActivoTrue, no en
+        // el service, así que con el repositorio mockeado no se ejerce nunca.
+        //
+        // Y para llegar hasta la regla hay que pasar por una puerta estrecha: si quien llama
+        // es un ADMIN activo y el objetivo también, por definición hay dos activos y la regla
+        // no dispara; y si el ADMIN intenta darse de baja a sí mismo, lo frena antes la regla
+        // de auto-baja. La única forma real es la de acá abajo, que además documenta el hueco
+        // aceptado del diseño: el access token de una cuenta recién dada de baja sigue siendo
+        // válido hasta que expira, porque el filtro no consulta la base.
+        String tokenAdmin = tokenDeAdmin();
+        Integer idSuplente = crearStaff(tokenAdmin, "adminSuplente", "claveAdmin123", "ADMIN");
+        String tokenSuplente = extraerCampo(login("adminSuplente", "claveAdmin123"), "accessToken");
+        Integer idAdminPrincipal = usuarioRepository.findByNombre("admin").orElseThrow().getId();
+
+        // Con dos ADMIN activos, dar de baja a uno se puede.
+        mockMvc.perform(patch("/api/v1/usuarios/" + idSuplente + "/activo")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":false}"))
+                .andExpect(status().isOk());
+
+        // El suplente ya está inactivo, pero su token sigue vivo. Con él intenta dar de baja
+        // al que queda: en la tabla hay dos filas ADMIN, activa una sola, y es esa.
+        mockMvc.perform(patch("/api/v1/usuarios/" + idAdminPrincipal + "/activo")
+                        .header("Authorization", "Bearer " + tokenSuplente)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":false}"))
+                .andExpect(status().isBadRequest())
+                // Se fija el mensaje y no solo el 400: sin esto, el test también pasaría si
+                // lo rechazara cualquier otra regla (la de auto-baja, una validación), o sea
+                // que pasaría por el motivo equivocado sin que nadie se enterara.
+                .andExpect(jsonPath("$.mensaje").value(
+                        org.hamcrest.Matchers.containsString("último administrador")));
+
+        assertTrue(usuarioRepository.findById(idAdminPrincipal).orElseThrow().isActivo());
     }
 
     private String tokenDeAdmin() throws Exception {
@@ -414,7 +464,7 @@ class UsuarioControllerIntegrationTest {
     private String registrarYLoguearCliente(String nombre, String apellido, String telefono,
                                              String email, String contrasena) throws Exception {
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, nombre, apellido, telefono, null, null, EstadoCliente.INACTIVO, "CODIGOTEST"));
+                new Cliente(null, nombre, apellido, telefono, telefono, null, null, EstadoCliente.INACTIVO, "CODIGOTEST"));
 
         mockMvc.perform(post("/api/v1/clientes/registro")
                         .contentType(MediaType.APPLICATION_JSON)

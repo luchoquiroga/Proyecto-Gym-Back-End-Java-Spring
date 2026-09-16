@@ -52,7 +52,7 @@ class PagoServiceTest {
 
     @BeforeEach
     void setUp() {
-        clienteInactivo = new Cliente(1, "Lucía", "Pérez", "11223344", null, null, EstadoCliente.INACTIVO, null);
+        clienteInactivo = new Cliente(1, "Lucía", "Pérez", "11223344", "11223344", null, null, EstadoCliente.INACTIVO, null);
         planMensual = new Plan(1, "Pase Mensual", 32500.0, 30);
         cajero = new Usuario(7, "gerencia1", "hash-irrelevante", RolUsuario.GERENCIA);
     }
@@ -167,16 +167,4 @@ class PagoServiceTest {
         verify(pagoRepository, never()).save(any(Pago.class));
     }
 
-    @Test
-    @DisplayName("Debe buscar pagos por fragmento de nombre de cliente")
-    void buscarPagosPorNombreCliente_deberiaRetornarLista() {
-        Pago pago = new Pago(1, clienteInactivo, planMensual, 32500.0, LocalDate.now(), LocalDate.now().plusDays(30), cajero);
-        when(pagoRepository.findByClienteNombreContainingIgnoreCase("Lucía")).thenReturn(List.of(pago));
-
-        List<Pago> resultados = pagoService.buscarPagosPorNombreCliente("Lucía");
-
-        assertEquals(1, resultados.size());
-        assertEquals("Lucía", resultados.get(0).getCliente().getNombre());
-        verify(pagoRepository, times(1)).findByClienteNombreContainingIgnoreCase("Lucía");
-    }
 }

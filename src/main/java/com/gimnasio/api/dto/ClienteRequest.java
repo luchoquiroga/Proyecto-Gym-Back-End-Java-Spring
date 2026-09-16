@@ -2,6 +2,8 @@ package com.gimnasio.api.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -33,6 +35,22 @@ public class ClienteRequest {
     private String apellido;
 
     private String telefono;
+
+    /**
+     * Documento de identidad. Obligatorio: es el único dato que distingue a dos socios
+     * homónimos, y ese es el motivo por el que existe el campo.
+     *
+     * No se valida contra el formato del DNI argentino a propósito: un socio extranjero con
+     * pasaporte o cédula tiene que poder anotarse, y una validación demasiado estricta
+     * termina esquivándose escribiendo cualquier cosa, que es peor que no validar. Lo que sí
+     * se hace es normalizarlo antes de guardarlo, así el mismo documento escrito con o sin
+     * puntos no entra dos veces.
+     */
+    @NotBlank(message = "El documento es obligatorio")
+    @Size(max = 20, message = "El documento no puede superar los 20 caracteres")
+    @Pattern(regexp = "^[A-Za-z0-9.\\- ]+$",
+            message = "El documento solo puede tener letras, números, puntos, espacios y guiones")
+    private String documento;
 
     @Email(message = "El email no tiene un formato válido")
     private String email;

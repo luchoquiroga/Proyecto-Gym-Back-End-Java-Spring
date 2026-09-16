@@ -202,7 +202,7 @@ tener pantallas. **Web-socio** = principal `CLIENTE`.
 | POST `/logout` | Público | ✓ | ✓ | — |
 | POST `` (alta staff) | ADMIN | ✓ (hoy) | — | — |
 | PUT `/cambiar-contrasena` | ADMIN | ✓ | ✓ | — |
-| DELETE `/{id}` | ADMIN | ✓ | — | — |
+| PATCH `/{id}/activo` | ADMIN | ✓ | — | — |
 
 Criterio: la administración de staff (alta y baja de usuarios) es trabajo de
 escritorio, no de celular. Se deja fuera de mobile a propósito.
@@ -220,7 +220,7 @@ escritorio, no de celular. Se deja fuera de mobile a propósito.
 | POST `` (alta) | ADMIN, GERENCIA | ✓ | — | — |
 | PUT `/{id}` | ADMIN, GERENCIA | ✓ | — | — |
 | PATCH `/{id}/estado` | ADMIN, GERENCIA | ✓ | — | — |
-| DELETE `/{id}` | ADMIN, GERENCIA | ✓ | — | — |
+| PATCH `/{id}/estado` (solo INACTIVO) | ADMIN, GERENCIA | ✓ | — | — |
 
 Criterio: mobile es la app de **consulta** del dueño, no la de mostrador. El
 alta, la edición y la activación de un cliente son operación diaria de
@@ -233,9 +233,9 @@ pueda operar desde el celular.
 | Endpoint | Permitido a | Web-staff | Mobile-admin | Web-socio |
 |---|---|---|---|---|
 | GET `` (listado) | **ADMIN** | ✓ solo ADMIN | ✓ | — |
-| GET `/buscar` | **ADMIN** | ✓ solo ADMIN | ✓ | — |
-| GET `/cliente/{clienteId}` | ADMIN, o el dueño | ✓ solo ADMIN | ✓ | ✓ (los suyos) |
-| GET `/{id}` | ADMIN, o el dueño | ✓ solo ADMIN | ✓ | ✓ (el suyo) |
+| POST `/{id}/anulacion` | **ADMIN** | ✓ solo ADMIN | — | — |
+| GET `/cliente/{clienteId}` | **ADMIN** | ✓ solo ADMIN | ✓ | — |
+| GET `/{id}` | **ADMIN** | ✓ solo ADMIN | ✓ | — |
 | POST `` (registrar) | ADMIN, GERENCIA | ✓ | — | — |
 
 Desde el 2026-09-15 ninguna lectura de pagos acepta GERENCIA: en la web-staff
@@ -251,7 +251,7 @@ dashboard, **el caso de uso que justifica la app**.
 
 | Endpoint | Permitido a | Web-staff | Mobile-admin | Web-socio |
 |---|---|---|---|---|
-| GET `` · `/{id}` · `/buscar` | cualquier autenticado | ✓ (hoy) | ✓ | ✓ |
+| GET `` (listado) | cualquier autenticado | ✓ (hoy) | ✓ | ✓ |
 | POST · PUT · DELETE | ADMIN | ✓ (hoy) | — | — |
 
 Criterio: el catálogo se lee en todos lados; se edita solo desde la web.

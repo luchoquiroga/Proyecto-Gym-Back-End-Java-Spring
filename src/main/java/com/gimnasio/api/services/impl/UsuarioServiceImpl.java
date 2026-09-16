@@ -104,11 +104,6 @@ public class UsuarioServiceImpl implements UsuarioService {
         return guardarContrasena(usuario, nuevaContrasena);
     }
 
-    @Override
-    @Transactional
-    public void darDeBaja(Integer id, Integer callerId) {
-        cambiarActivo(id, false, callerId);
-    }
 
     @Override
     @Transactional

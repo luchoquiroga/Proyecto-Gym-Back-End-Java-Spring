@@ -67,16 +67,6 @@ public interface UsuarioService {
      */
     Usuario resetearContrasena(Integer id, String nuevaContrasena, Integer callerId);
 
-    /**
-     * Da de baja lógica a una cuenta de staff: queda inactiva y se le revocan las sesiones
-     * abiertas, pero la fila se conserva para no perder a quién apunta {@code registrado_por}
-     * en los pagos que cobró (ver migración V5). Es idempotente.
-     * @param id Identificador del usuario a dar de baja.
-     * @param callerId Identificador de quien pide la baja (para evitar auto-eliminarse).
-     * @throws IllegalArgumentException si el id coincide con callerId, o si el usuario es el
-     *         último ADMIN activo del sistema.
-     */
-    void darDeBaja(Integer id, Integer callerId);
 
     /**
      * Activa o desactiva una cuenta de staff. Reactivar es la única salida cuando se dio de

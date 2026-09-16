@@ -14,18 +14,7 @@ import java.util.List;
  */
 public interface ClienteService {
 
-    /**
-     * Obtiene la lista completa de todos los clientes registrados.
-     */
-    List<Cliente> obtenerTodos();
 
-    /**
-     * Busca un cliente unívocamente por su clave primaria (ID).
-     * @param id Identificador único del cliente.
-     * @return El cliente encontrado.
-     * @throws RuntimeException si el cliente no existe.
-     */
-    Cliente obtenerPorId(Integer id);
 
 
     /**
@@ -54,12 +43,6 @@ public interface ClienteService {
      */
     ClienteResponse cambiarEstado(Integer id, EstadoCliente nuevoEstado);
 
-    /**
-     * Da de baja lógica (Soft Delete) a un cliente, pasando su estado a INACTIVO.
-     * Mantiene intacta la integridad referencial y el historial de pagos.
-     * @param id Identificador del cliente a dar de baja.
-     */
-    void darDeBaja(Integer id);
 
     /**
      * Completa el registro web de un cliente ya dado de alta por el staff (sin credenciales),

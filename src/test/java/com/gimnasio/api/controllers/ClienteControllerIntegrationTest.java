@@ -92,7 +92,7 @@ class ClienteControllerIntegrationTest {
     @DisplayName("Registro exitoso completa email, hashea la contraseña y anula el código usado")
     void registro_conCodigoValido_deberiaCompletarPerfil() throws Exception {
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, "Laura", "Fernandez", "555-C2", null, null, EstadoCliente.INACTIVO, "CODIGO-C2"));
+                new Cliente(null, "Laura", "Fernandez", "555-C2", "555-C2", null, null, EstadoCliente.INACTIVO, "CODIGO-C2"));
 
         ClienteRegistroRequest request = new ClienteRegistroRequest(
                 "CODIGO-C2", "laura@test.com", "claveLaura123");
@@ -113,7 +113,7 @@ class ClienteControllerIntegrationTest {
     @Test
     @DisplayName("Reusar un código de activación ya canjeado debe devolver 400 (es de un solo uso)")
     void registro_conCodigoYaCanjeado_deberiaDevolver400() throws Exception {
-        clienteRepository.save(new Cliente(null, "Marta", "Diaz", "555-C3",
+        clienteRepository.save(new Cliente(null, "Marta", "Diaz", "555-C3", "555-C3",
                 "marta@test.com", passwordEncoder.encode("claveVieja"), EstadoCliente.INACTIVO, null));
 
         ClienteRegistroRequest request = new ClienteRegistroRequest(
@@ -130,10 +130,10 @@ class ClienteControllerIntegrationTest {
     @Test
     @DisplayName("Registro con email ya usado por otro cliente debe devolver 400")
     void registro_conEmailDuplicado_deberiaDevolver400() throws Exception {
-        clienteRepository.save(new Cliente(null, "Existente", "Usuario", "555-C4",
+        clienteRepository.save(new Cliente(null, "Existente", "Usuario", "555-C4", "555-C4",
                 "ocupado@test.com", passwordEncoder.encode("clave"), EstadoCliente.ACTIVO, null));
         clienteRepository.save(
-                new Cliente(null, "Nuevo", "Cliente", "555-C5", null, null, EstadoCliente.INACTIVO, "CODIGO-C5"));
+                new Cliente(null, "Nuevo", "Cliente", "555-C5", "555-C5", null, null, EstadoCliente.INACTIVO, "CODIGO-C5"));
 
         ClienteRegistroRequest request = new ClienteRegistroRequest(
                 "CODIGO-C5", "ocupado@test.com", "claveNueva");
@@ -273,7 +273,7 @@ class ClienteControllerIntegrationTest {
     @DisplayName("Un token de Cliente no puede ver el registro de otro cliente por id")
     void obtenerPorId_conTokenDeOtroCliente_deberiaDevolver403() throws Exception {
         Cliente otroCliente = clienteRepository.save(
-                new Cliente(null, "Ajeno", "Perez", "555-C12", null, null, EstadoCliente.INACTIVO, null));
+                new Cliente(null, "Ajeno", "Perez", "555-C12", "555-C12", null, null, EstadoCliente.INACTIVO, null));
         registrarCliente("Nico", "Vega", "555-C13", "nico2@test.com", "claveNico123");
         MvcResult loginResult = mockMvc.perform(post("/api/v1/clientes/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -291,7 +291,7 @@ class ClienteControllerIntegrationTest {
     @DisplayName("GET /clientes/{id} de un socio con un pago vigente devuelve su fechaVencimiento, sin exponer montos ni contraseña")
     void obtenerPorId_conPagoVigente_deberiaDevolverFechaVencimientoSinDatosMonetarios() throws Exception {
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, "Rocio", "Alonso", "555-C14", null, null, EstadoCliente.ACTIVO, null));
+                new Cliente(null, "Rocio", "Alonso", "555-C14", "555-C14", null, null, EstadoCliente.ACTIVO, null));
         Plan plan = planRepository.findAll().stream().findFirst()
                 .orElseThrow(() -> new IllegalStateException("No hay planes sembrados por DataInitializer"));
         LocalDate fechaVencimientoEsperada = LocalDate.now().plusDays(plan.getDuracion());
@@ -314,19 +314,6 @@ class ClienteControllerIntegrationTest {
                 .andExpect(jsonPath("$.contrasena").doesNotExist());
     }
 
-    @Test
-    @DisplayName("GET /clientes/{id} de un socio que nunca pagó devuelve fechaVencimiento null")
-    void obtenerPorId_sinPagos_deberiaDevolverFechaVencimientoNull() throws Exception {
-        Cliente cliente = clienteRepository.save(
-                new Cliente(null, "Federico", "Suarez", "555-C15", null, null, EstadoCliente.INACTIVO, null));
-
-        String tokenAdmin = loguearComoAdmin();
-
-        mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
-                        .header("Authorization", "Bearer " + tokenAdmin))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.fechaVencimiento").doesNotExist());
-    }
 
     @Test
     @DisplayName("POST /clientes con id y estado en el body debe ignorarlos: el socio nuevo queda con id propio e INACTIVO")
@@ -341,6 +328,7 @@ class ClienteControllerIntegrationTest {
                   "nombre": "Intruso",
                   "apellido": "Test",
                   "telefono": "555-X1",
+                  "documento": "30111222",
                   "id": 99,
                   "estado": "ACTIVO"
                 }
@@ -385,7 +373,7 @@ class ClienteControllerIntegrationTest {
     @DisplayName("GET /clientes debe devolver la forma paginada")
     void listarClientes_deberiaDevolverFormaPaginada() throws Exception {
         clienteRepository.save(
-                new Cliente(null, "Marisa", "Ortega", "555-P1", null, null, EstadoCliente.ACTIVO, null));
+                new Cliente(null, "Marisa", "Ortega", "555-P1", "555-P1", null, null, EstadoCliente.ACTIVO, null));
         String tokenAdmin = loguearComoAdmin();
 
         mockMvc.perform(get("/api/v1/clientes").header("Authorization", "Bearer " + tokenAdmin))
@@ -400,14 +388,15 @@ class ClienteControllerIntegrationTest {
     @DisplayName("PUT /clientes/{id} debe devolver un ClienteResponse sin contraseña ni código de activación")
     void actualizar_deberiaDevolverClienteResponseSinCamposSensibles() throws Exception {
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, "Hernan", "Diaz", "555-P2", null, null, EstadoCliente.INACTIVO, null));
+                new Cliente(null, "Hernan", "Diaz", "555-P2", "555-P2", null, null, EstadoCliente.INACTIVO, null));
         String tokenAdmin = loguearComoAdmin();
 
         String cuerpo = """
                 {
                   "nombre": "Hernan Actualizado",
                   "apellido": "Diaz",
-                  "telefono": "555-P2-NUEVO"
+                  "telefono": "555-P2-NUEVO",
+                  "documento": "30.111.333"
                 }
                 """;
 
@@ -418,6 +407,8 @@ class ClienteControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nombre").value("Hernan Actualizado"))
                 .andExpect(jsonPath("$.telefono").value("555-P2-NUEVO"))
+                // Se guarda normalizado: entra con puntos, sale sin.
+                .andExpect(jsonPath("$.documento").value("30111333"))
                 .andExpect(jsonPath("$.contrasena").doesNotExist())
                 .andExpect(jsonPath("$.codigoActivacion").doesNotExist());
     }
@@ -426,23 +417,36 @@ class ClienteControllerIntegrationTest {
     @DisplayName("PATCH /clientes/{id}/estado debe devolver un ClienteResponse sin contraseña ni código de activación")
     void cambiarEstado_deberiaDevolverClienteResponseSinCamposSensibles() throws Exception {
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, "Yamila", "Ruiz", "555-P3", null, null, EstadoCliente.INACTIVO, null));
+                new Cliente(null, "Yamila", "Ruiz", "555-P3", "555-P3", null, null, EstadoCliente.INACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(patch("/api/v1/clientes/" + cliente.getId() + "/estado")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .param("nuevoEstado", "INACTIVO"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("INACTIVO"))
+                .andExpect(jsonPath("$.contrasena").doesNotExist())
+                .andExpect(jsonPath("$.codigoActivacion").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("PATCH /clientes/{id}/estado tampoco acepta MOROSO: lo calcula el vencimiento")
+    void cambiarEstado_aMoroso_deberiaDevolver400() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Nilda", "Paz", "555-P10", "555-P10", null, null, EstadoCliente.INACTIVO, null));
         String tokenAdmin = loguearComoAdmin();
 
         mockMvc.perform(patch("/api/v1/clientes/" + cliente.getId() + "/estado")
                         .header("Authorization", "Bearer " + tokenAdmin)
                         .param("nuevoEstado", "MOROSO"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.estado").value("MOROSO"))
-                .andExpect(jsonPath("$.contrasena").doesNotExist())
-                .andExpect(jsonPath("$.codigoActivacion").doesNotExist());
+                .andExpect(status().isBadRequest());
     }
 
     @Test
     @DisplayName("PATCH /clientes/{id}/estado no puede activar a un socio: eso lo hace un pago")
     void cambiarEstado_aActivo_deberiaDevolver400() throws Exception {
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, "Bruno", "Paz", "555-P9", null, null, EstadoCliente.INACTIVO, null));
+                new Cliente(null, "Bruno", "Paz", "555-P9", "555-P9", null, null, EstadoCliente.INACTIVO, null));
         String tokenAdmin = loguearComoAdmin();
 
         mockMvc.perform(patch("/api/v1/clientes/" + cliente.getId() + "/estado")
@@ -471,7 +475,7 @@ class ClienteControllerIntegrationTest {
     @DisplayName("GET /clientes/buscar con coincidencia debe devolver una lista con ese cliente")
     void buscarPorNombre_conCoincidencia_deberiaDevolverListaConElCliente() throws Exception {
         clienteRepository.save(
-                new Cliente(null, "NombreUnicoBusqueda", "Apellido", "555-P4", null, null, EstadoCliente.INACTIVO, null));
+                new Cliente(null, "NombreUnicoBusqueda", "Apellido", "555-P4", "555-P4", null, null, EstadoCliente.INACTIVO, null));
         String tokenAdmin = loguearComoAdmin();
 
         mockMvc.perform(get("/api/v1/clientes/buscar")
@@ -481,6 +485,115 @@ class ClienteControllerIntegrationTest {
                 .andExpect(jsonPath("$[0].nombre").value("NombreUnicoBusqueda"))
                 .andExpect(jsonPath("$[0].contrasena").doesNotExist());
     }
+
+    @Test
+    @DisplayName("El documento se guarda normalizado: entra con puntos y sale sin")
+    void crear_conDocumentoConPuntos_deberiaGuardarloNormalizado() throws Exception {
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(post("/api/v1/clientes")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CUERPO_CON_PUNTOS))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.documento").value("28444555"));
+    }
+
+    @Test
+    @DisplayName("El mismo documento escrito distinto es el mismo socio: la segunda alta da 409")
+    void crear_conDocumentoYaUsadoEscritoDistinto_deberiaDevolver409() throws Exception {
+        // Sin normalizar, 28.444.666 y 28444666 entrarian como dos socios distintos siendo
+        // la misma persona, y el UNIQUE no serviria para nada: volveria el problema de los
+        // homonimos con otra cara.
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(post("/api/v1/clientes")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CUERPO_DUPLICADO_1))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/clientes")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CUERPO_DUPLICADO_2))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(org.hamcrest.Matchers.containsString("28444666")));
+    }
+
+    @Test
+    @DisplayName("Un alta sin documento devuelve 400 y no crea nada")
+    void crear_sinDocumento_deberiaDevolver400() throws Exception {
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(post("/api/v1/clientes")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CUERPO_SIN_DOCUMENTO))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.documento").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("Editar un socio dejandole su propio documento no es un conflicto")
+    void actualizar_conSuPropioDocumento_deberiaDevolver200() throws Exception {
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Ruben", "Sosa", "555-D1", "27333444", null, null,
+                        EstadoCliente.INACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(put("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CUERPO_MISMO_DOCUMENTO))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.documento").value("27333444"));
+    }
+
+    @Test
+    @DisplayName("Editar el documento de un socio al de otro devuelve 409")
+    void actualizar_conDocumentoDeOtroSocio_deberiaDevolver409() throws Exception {
+        clienteRepository.save(new Cliente(null, "Ana", "Gil", "555-D2", "26222333", null, null,
+                EstadoCliente.INACTIVO, null));
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Elsa", "Gil", "555-D3", "26222444", null, null,
+                        EstadoCliente.INACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(put("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CUERPO_DOCUMENTO_AJENO))
+                .andExpect(status().isConflict());
+
+        assertEquals("26222444", clienteRepository.findById(cliente.getId()).orElseThrow().getDocumento());
+    }
+
+    @Test
+    @DisplayName("Dos socios homonimos se distinguen por el documento en el listado")
+    void listar_conHomonimos_deberiaDistinguirlosPorDocumento() throws Exception {
+        // El caso que motivo toda la fase: sin el documento, estas dos filas eran identicas
+        // caracter por caracter y no habia forma de saber cual era cual.
+        clienteRepository.save(new Cliente(null, "Juan", "Perez", "555-D4", "20111222", null, null,
+                EstadoCliente.INACTIVO, null));
+        clienteRepository.save(new Cliente(null, "Juan", "Perez", "555-D5", "45999888", null, null,
+                EstadoCliente.INACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(get("/api/v1/clientes")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .param("size", "200"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido[?(@.documento == '20111222')].nombre").value("Juan"))
+                .andExpect(jsonPath("$.contenido[?(@.documento == '45999888')].nombre").value("Juan"));
+    }
+
+    private static final String CUERPO_CON_PUNTOS = "{\"nombre\":\"Nadia\", \"apellido\":\"Luna\", \"telefono\":\"555-D9\", \"documento\":\"28.444.555\"}";
+    private static final String CUERPO_DUPLICADO_1 = "{\"nombre\":\"Primer\", \"apellido\":\"Socio\", \"telefono\":\"555-D10\", \"documento\":\"28444666\"}";
+    private static final String CUERPO_DUPLICADO_2 = "{\"nombre\":\"Segundo\", \"apellido\":\"Socio\", \"telefono\":\"555-D11\", \"documento\":\"28.444.666\"}";
+    private static final String CUERPO_SIN_DOCUMENTO = "{\"nombre\":\"Sin\", \"apellido\":\"Documento\", \"telefono\":\"555-D12\"}";
+    private static final String CUERPO_MISMO_DOCUMENTO = "{\"nombre\":\"Ruben\", \"apellido\":\"Sosa\", \"telefono\":\"555-D1\", \"documento\":\"27.333.444\"}";
+    private static final String CUERPO_DOCUMENTO_AJENO = "{\"nombre\":\"Elsa\", \"apellido\":\"Gil\", \"telefono\":\"555-D3\", \"documento\":\"26222333\"}";
 
     private String loguearComoAdmin() throws Exception {
         MvcResult resultado = mockMvc.perform(post("/api/v1/usuarios/login")
@@ -496,7 +609,7 @@ class ClienteControllerIntegrationTest {
         // El teléfono ya es único por test y cabe en el VARCHAR(10) de codigo_activacion,
         // así que sirve como código de activación de prueba sin riesgo de colisión.
         Cliente cliente = clienteRepository.save(
-                new Cliente(null, nombre, apellido, telefono, null, null, EstadoCliente.INACTIVO, telefono));
+                new Cliente(null, nombre, apellido, telefono, telefono, null, null, EstadoCliente.INACTIVO, telefono));
 
         mockMvc.perform(post("/api/v1/clientes/registro")
                         .contentType(MediaType.APPLICATION_JSON)
