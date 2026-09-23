@@ -34,7 +34,7 @@ deciden nada), ni recalcular cadenas de pagos al anular (ver §2.2).
 Un único `Clock` con zona `America/Argentina/Buenos_Aires`
 (`config/ZonaHorariaConfig`) que se inyecta en todo service que pregunte la
 fecha. El cron del scheduler lleva la misma zona. Se eligió `Clock` y no
-`-Duser.timezone` porque además deja testear "son las 22:00 del 29/09" con un
+`-Duser.timezone` porque además deja testear "son las 22:00 del 30/09" con un
 reloj fijo, y porque no depende de que alguien se acuerde de un flag en Render.
 
 ### 2.2 B2 — Cobrar por adelantado encadena el período
@@ -114,9 +114,9 @@ Contraseña corta → 400 con "La contraseña debe tener al menos 8 caracteres".
 
 ## 7. Tests
 
-- Unit (`Clock` fijo en `2026-09-30T01:00Z` = 29/09 22:00 en Argentina): el
-  pago sin fecha queda el 29/09; el dashboard sin parámetros informa septiembre;
-  un socio que vence el 29/09 no pasa a MOROSO.
+- Unit (`Clock` fijo en `2026-10-01T01:00Z` = 30/09 22:00 en Argentina): el
+  pago sin fecha queda el 30/09; el dashboard sin parámetros informa septiembre;
+  aunque en UTC ya sea octubre; un socio que vence ese día no pasa a MOROSO.
 - Unit B2: cobro anticipado se encadena, cobro con el socio vencido arranca en
   `fechaPago`, retroactivo no se encadena; anulación rechazada con pago
   encadenado.
