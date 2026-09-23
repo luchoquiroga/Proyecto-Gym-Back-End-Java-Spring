@@ -2,7 +2,7 @@
 
 Fuente de verdad de quién puede llamar a cada endpoint. Refleja el estado de
 `SecurityConfig.java` + los chequeos de ownership hechos a mano en los
-controllers, al 2026-09-15. Si tocás cualquiera de los dos, actualizá esta
+controllers, al 2026-09-23. Si tocás cualquiera de los dos, actualizá esta
 tabla en el mismo commit.
 
 Roles/principales que existen hoy:
@@ -47,7 +47,7 @@ Roles/principales que existen hoy:
 | GET | `` (listado) | ADMIN | 2026-09-15: sacado a GERENCIA (ver Historial). Acepta `?desde=&hasta=` sobre la fecha de cobro, para desglosar las ganancias de un mes |
 | GET | `/cliente/{clienteId}` | ADMIN | 2026-09-16 (Fase 7): dejó de aceptar al CLIENTE dueño. Ahora es regla de ruta y no un chequeo a mano |
 | GET | `/{id}` | ADMIN | 2026-09-16 (Fase 7): dejó de aceptar al CLIENTE dueño. Ahora es regla de ruta y no un chequeo a mano |
-| POST | `/{id}/anulacion` | ADMIN | agregado 2026-09-15 (Fase 6): marca el pago como anulado con motivo obligatorio, quien anula sale del token. **No borra la fila y no existe editar un pago**: corregir un importe es anular y volver a cobrar. GERENCIA cobra pero no toca caja ya registrada |
+| POST | `/{id}/anulacion` | ADMIN | agregado 2026-09-15 (Fase 6): marca el pago como anulado con motivo obligatorio, quien anula sale del token. **No borra la fila y no existe editar un pago**: corregir un importe es anular y volver a cobrar. GERENCIA cobra pero no toca caja ya registrada. 2026-09-23 (Fase 9): 400 si otro pago del socio, registrado después, se cobró durante el período de este —puede estar encadenado a él—; se anula primero ese |
 | POST | `` (registrar pago) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado (un CLIENTE podía registrarse pagos a sí mismo o a otros). Desde 2026-09-15 guarda `registrado_por` tomado del token (nunca del body) y rechaza montos menores al precio del plan |
 
 ## `/api/v1/planes`
@@ -59,9 +59,13 @@ Roles/principales que existen hoy:
 
 ## `/api/v1/dashboard/**`
 
-| Método | Ruta | Quién puede |
-|---|---|---|
-| todos | | ADMIN |
+| Método | Ruta | Quién puede | Notas |
+|---|---|---|---|
+| GET | `/ganancias-mensuales` | ADMIN | total cobrado y cantidad de pagos de un mes (`?anio=&mes=`, sin parámetros el mes en curso de Argentina) |
+| GET | `/socios` | ADMIN | agregado 2026-09-23 (Fase 9): cantidad actual de socios por estado. Es una foto de hoy y por eso no va dentro de `/ganancias-mensuales`, que responde por un mes elegido. No es monetario, pero sigue la regla de ruta del dashboard entero |
+
+La regla es de ruta (`/api/v1/dashboard/**` → ADMIN): cualquier endpoint nuevo bajo
+este prefijo queda solo-ADMIN sin tocar `SecurityConfig`.
 
 ## `/ping`
 

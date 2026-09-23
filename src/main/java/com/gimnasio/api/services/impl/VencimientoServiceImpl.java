@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -27,11 +28,12 @@ public class VencimientoServiceImpl implements VencimientoService {
 
     private final PagoRepository pagoRepository;
     private final ClienteRepository clienteRepository;
+    private final Clock clock;
 
     @Override
     @Transactional
     public void actualizarEstadosPorVencimiento() {
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = LocalDate.now(clock);
         List<Pago> ultimosPagos = pagoRepository.findUltimoPagoPorCadaCliente();
 
         for (Pago ultimoPago : ultimosPagos) {
@@ -63,7 +65,7 @@ public class VencimientoServiceImpl implements VencimientoService {
         EstadoCliente estadoCalculado = pagoRepository
                 .findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(clienteId)
                 .map(pago -> calcularEstadoPorDiasVencido(
-                        ChronoUnit.DAYS.between(pago.getFechaVencimiento(), LocalDate.now())))
+                        ChronoUnit.DAYS.between(pago.getFechaVencimiento(), LocalDate.now(clock))))
                 // Sin ningún pago vigente el socio no está al día con nada: es el caso de
                 // anular el único pago que tenía.
                 .orElse(EstadoCliente.INACTIVO);

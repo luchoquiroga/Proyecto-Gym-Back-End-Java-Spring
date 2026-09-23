@@ -1,0 +1,125 @@
+package com.gimnasio.api.controllers;
+
+import com.gimnasio.api.dto.ClienteLoginRequest;
+import com.gimnasio.api.dto.ClienteRegistroRequest;
+import com.gimnasio.api.dto.LoginRequest;
+import com.gimnasio.api.models.Cliente;
+import com.gimnasio.api.models.enums.EstadoCliente;
+import com.gimnasio.api.repositories.ClienteRepository;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
+
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * Tests de integración de /api/v1/dashboard. Todo el dashboard es de ADMIN (regla de ruta
+ * en SecurityConfig), incluido el conteo de socios aunque no sea un dato monetario.
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@Transactional
+class DashboardControllerIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private ClienteRepository clienteRepository;
+
+    @Test
+    @DisplayName("ADMIN recibe el conteo de socios por estado, que refleja los socios de la base")
+    void contarSocios_conTokenAdmin_deberiaDevolverElConteo() throws Exception {
+        long activosAntes = clienteRepository.countByEstado(EstadoCliente.ACTIVO);
+        clienteRepository.save(new Cliente(null, "Pia", "Luna", "555-D10", "555D10", null, null, EstadoCliente.ACTIVO, null));
+
+        mockMvc.perform(get("/api/v1/dashboard/socios")
+                        .header("Authorization", "Bearer " + loguearComoAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activos").value(activosAntes + 1))
+                .andExpect(jsonPath("$.morosos").isNumber())
+                .andExpect(jsonPath("$.inactivos").isNumber());
+    }
+
+    @Test
+    @DisplayName("GERENCIA no accede al conteo de socios: el dashboard entero es de ADMIN")
+    void contarSocios_conTokenGerencia_deberiaDevolver403() throws Exception {
+        mockMvc.perform(get("/api/v1/dashboard/socios")
+                        .header("Authorization", "Bearer " + loguearComoGerencia()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Un CLIENTE no accede al conteo de socios")
+    void contarSocios_conTokenDeCliente_deberiaDevolver403() throws Exception {
+        clienteRepository.save(new Cliente(null, "Ciro", "Mena", "555-D11", "555D11", null, null, EstadoCliente.ACTIVO, "555-D11"));
+        mockMvc.perform(post("/api/v1/clientes/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ClienteRegistroRequest("555-D11", "ciro@test.com", "claveCiro123"))))
+                .andExpect(status().isOk());
+
+        MvcResult login = mockMvc.perform(post("/api/v1/clientes/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ClienteLoginRequest("ciro@test.com", "claveCiro123"))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        mockMvc.perform(get("/api/v1/dashboard/socios")
+                        .header("Authorization", "Bearer " + extraerToken(login)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("El 401 de la cadena de seguridad declara UTF-8, para que los acentos no se rompan")
+    void sinToken_deberiaResponder401EnUtf8() throws Exception {
+        mockMvc.perform(get("/api/v1/dashboard/socios"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", containsStringIgnoringCase("charset=UTF-8")))
+                .andExpect(jsonPath("$.mensaje").value("Es necesario iniciar sesión para acceder a este recurso"));
+    }
+
+    private String loguearComoAdmin() throws Exception {
+        MvcResult resultado = mockMvc.perform(post("/api/v1/usuarios/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("admin", "admin123456789"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        return extraerToken(resultado);
+    }
+
+    private String loguearComoGerencia() throws Exception {
+        // No hay un GERENCIA sembrado: lo crea un ADMIN, como en la vida real.
+        mockMvc.perform(post("/api/v1/usuarios")
+                        .header("Authorization", "Bearer " + loguearComoAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nombre\":\"gerencia.dashboard\",\"contrasena\":\"claveGerencia123\",\"rol\":\"GERENCIA\"}"))
+                .andExpect(status().isCreated());
+
+        MvcResult resultado = mockMvc.perform(post("/api/v1/usuarios/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("gerencia.dashboard", "claveGerencia123"))))
+                .andExpect(status().isOk())
+                .andReturn();
+        return extraerToken(resultado);
+    }
+
+    private String extraerToken(MvcResult resultado) throws Exception {
+        return objectMapper.readTree(resultado.getResponse().getContentAsString()).get("accessToken").asText();
+    }
+}

@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +37,7 @@ public class PagoServiceImpl implements PagoService {
     // Anular el último pago de un socio puede dejarlo con el vencimiento pasado: el estado
     // se recalcula con la misma regla que usa la corrida diaria, en vez de reescribirla acá.
     private final VencimientoService vencimientoService;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -68,12 +70,24 @@ public class PagoServiceImpl implements PagoService {
             throw new IllegalArgumentException("El pago " + id + " ya estaba anulado.");
         }
 
+        // Un cobro anticipado arranca en el vencimiento del pago vigente (ver registrarPago).
+        // Si se anulara este pago, el que se encadenó a él conservaría su vencimiento corrido
+        // y el socio se quedaría con días que no pagó. No se recalcula el posterior porque un
+        // pago registrado no se edita: se pide anularlo primero.
+        List<Pago> posteriores = pagoRepository.findCobradosDuranteElPeriodo(
+                pago.getCliente().getId(), pago.getId(), pago.getFechaPago(), pago.getFechaVencimiento());
+        if (!posteriores.isEmpty()) {
+            throw new IllegalArgumentException("No se puede anular el pago " + id
+                    + ": el pago " + posteriores.get(0).getId()
+                    + " se cobró durante su período y puede estar encadenado a él. Anulá primero ese pago.");
+        }
+
         Usuario anuladoPor = anuladoPorId == null ? null
                 : usuarioRepository.findById(anuladoPorId).orElse(null);
 
         pago.setAnulado(true);
         pago.setAnuladoPor(anuladoPor);
-        pago.setFechaAnulacion(LocalDateTime.now());
+        pago.setFechaAnulacion(LocalDateTime.now(clock));
         pago.setMotivoAnulacion(motivo);
         Pago anulado = pagoRepository.save(pago);
 
@@ -118,7 +132,7 @@ public class PagoServiceImpl implements PagoService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("No se puede registrar el pago: Usuario no encontrado con ID " + registradoPorId));
 
         // 4. Establecer fecha de pago por defecto (hoy si no se especifica)
-        LocalDate fechaEfectiva = (fechaPago != null) ? fechaPago : LocalDate.now();
+        LocalDate fechaEfectiva = (fechaPago != null) ? fechaPago : LocalDate.now(clock);
 
         // 5. Establecer monto: si no se especifica, se cobra el precio oficial del plan.
         Double montoFinal = (montoAbonado != null) ? montoAbonado : plan.getPrecio();
@@ -132,10 +146,18 @@ public class PagoServiceImpl implements PagoService {
                             + " (" + plan.getPrecio() + "). No se admiten pagos parciales.");
         }
 
-        // 7. Calcular la fecha de vencimiento sumando la duración en días del plan
-        LocalDate fechaVencimiento = fechaEfectiva.plusDays(plan.getDuracion());
+        // 7. Calcular desde cuándo corre el período. Si el socio paga por adelantado, el
+        // período nuevo arranca cuando termina el que ya tiene, no el día del cobro: si no,
+        // pierde los días que le quedaban. Se encadena sea cual sea el plan. fechaPago no
+        // cambia (es el día en que entró la plata), así que la caja y el dashboard tampoco.
+        LocalDate inicioPeriodo = pagoRepository.findVencimientoVigenteAl(clienteId, fechaEfectiva)
+                .filter(vencimientoVigente -> vencimientoVigente.isAfter(fechaEfectiva))
+                .orElse(fechaEfectiva);
 
-        // 8. Crear y guardar la entidad Pago
+        // 8. Calcular la fecha de vencimiento sumando la duración en días del plan
+        LocalDate fechaVencimiento = inicioPeriodo.plusDays(plan.getDuracion());
+
+        // 9. Crear y guardar la entidad Pago
         Pago pago = new Pago();
         pago.setCliente(cliente);
         pago.setPlan(plan);
@@ -146,11 +168,11 @@ public class PagoServiceImpl implements PagoService {
 
         Pago pagoGuardado = pagoRepository.save(pago);
 
-        // 9. Regla de negocio: el pago activa al cliente, pero solo si efectivamente lo
+        // 10. Regla de negocio: el pago activa al cliente, pero solo si efectivamente lo
         // deja al día. Un pago retroactivo cuyo período ya venció no reactiva a nadie:
         // el scheduler de vencimientos solo escala estados (nunca los revierte), así que
         // activar acá a ciegas dejaba al cliente ACTIVO indebidamente.
-        if (fechaVencimiento.isAfter(LocalDate.now())) {
+        if (fechaVencimiento.isAfter(LocalDate.now(clock))) {
             cliente.setEstado(EstadoCliente.ACTIVO);
             clienteRepository.save(cliente);
         }

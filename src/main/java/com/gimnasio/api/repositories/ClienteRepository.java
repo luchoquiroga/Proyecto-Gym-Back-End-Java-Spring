@@ -1,6 +1,7 @@
 package com.gimnasio.api.repositories;
 
 import com.gimnasio.api.models.Cliente;
+import com.gimnasio.api.models.enums.EstadoCliente;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -16,4 +17,5 @@ public interface ClienteRepository extends JpaRepository<Cliente, Integer> {
     Optional<Cliente> findByDocumento(String documento);
     Optional<Cliente> findByCodigoActivacion(String codigoActivacion);
     boolean existsByCodigoActivacion(String codigoActivacion);
+    long countByEstado(EstadoCliente estado);
 }

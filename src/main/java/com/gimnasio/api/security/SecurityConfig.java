@@ -18,6 +18,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -128,6 +129,8 @@ public class SecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                            // Sin charset explícito el contenedor escribe en ISO-8859-1 y los acentos se rompen.
+                            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             response.getWriter().write(
                                     "{\"status\":401,\"mensaje\":\"Es necesario iniciar sesión para acceder a este recurso\"}"
@@ -135,6 +138,8 @@ public class SecurityConfig {
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             response.setStatus(HttpStatus.FORBIDDEN.value());
+                            // Sin charset explícito el contenedor escribe en ISO-8859-1 y los acentos se rompen.
+                            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             response.getWriter().write(
                                     "{\"status\":403,\"mensaje\":\"No tenés permisos para acceder a este recurso\"}"

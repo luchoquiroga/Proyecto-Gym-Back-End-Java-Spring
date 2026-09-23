@@ -1,6 +1,7 @@
 package com.gimnasio.api.services;
 
 import com.gimnasio.api.dto.GananciasMensualesResponse;
+import com.gimnasio.api.dto.SociosPorEstadoResponse;
 
 /**
  * Define las operaciones de negocio para los reportes del dashboard administrativo.
@@ -15,4 +16,11 @@ public interface DashboardService {
      * @return Resumen con el total de ganancias y la cantidad de pagos del período.
      */
     GananciasMensualesResponse obtenerGananciasMensuales(Integer anio, Integer mes);
+
+    /**
+     * Cuenta los socios que hay hoy en cada estado. El estado contado es el persistido,
+     * que la corrida diaria de vencimientos mantiene al día.
+     * @return Cantidad de socios activos, morosos e inactivos.
+     */
+    SociosPorEstadoResponse contarSociosPorEstado();
 }

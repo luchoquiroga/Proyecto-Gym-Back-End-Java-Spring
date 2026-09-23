@@ -472,6 +472,77 @@ class PagoControllerIntegrationTest {
         assertEquals(EstadoCliente.INACTIVO, clienteRepository.findById(cliente.getId()).orElseThrow().getEstado());
     }
 
+    @Test
+    @DisplayName("Un cobro anticipado arranca cuando termina el período vigente, no el día del cobro")
+    void registrarPago_conPeriodoVigente_deberiaEncadenarse() throws Exception {
+        Cliente cliente = crearClienteConPago("Carla", "Ruiz", "555-P40", null, null);
+        Plan plan = planRepository.findAll().getFirst();
+        LocalDate vencimientoVigente = pagoRepository.findByClienteId(cliente.getId()).getFirst().getFechaVencimiento();
+        LocalDate hoy = LocalDate.now();
+
+        Integer pagoId = cobrar(cliente, plan, hoy);
+
+        Pago guardado = pagoRepository.findById(pagoId).orElseThrow();
+        assertEquals(hoy, guardado.getFechaPago());
+        assertEquals(vencimientoVigente.plusDays(plan.getDuracion()), guardado.getFechaVencimiento());
+    }
+
+    @Test
+    @DisplayName("Un pago retroactivo no se encadena a una cobertura que en su fecha todavía no existía")
+    void registrarPago_retroactivo_noDeberiaEncadenarse() throws Exception {
+        // Esto vive en la consulta (fechaPago <=), así que solo se puede probar contra la base.
+        Cliente cliente = crearClienteConPago("Tomas", "Vera", "555-P41", null, null);
+        Plan plan = planRepository.findAll().getFirst();
+        LocalDate haceDosMeses = LocalDate.now().minusDays(60);
+
+        Integer pagoId = cobrar(cliente, plan, haceDosMeses);
+
+        Pago guardado = pagoRepository.findById(pagoId).orElseThrow();
+        assertEquals(haceDosMeses.plusDays(plan.getDuracion()), guardado.getFechaVencimiento());
+    }
+
+    @Test
+    @DisplayName("No se puede anular un pago que tiene otro encadenado después; primero se anula ese")
+    void anularPago_conOtroEncadenado_deberiaDevolver400() throws Exception {
+        Cliente cliente = crearClienteConPago("Ines", "Paz", "555-P42", null, null);
+        Plan plan = planRepository.findAll().getFirst();
+        Integer primero = pagoRepository.findByClienteId(cliente.getId()).getFirst().getId();
+        Integer encadenado = cobrar(cliente, plan, LocalDate.now());
+        String tokenAdmin = loguearComoAdmin();
+
+        mockMvc.perform(post("/api/v1/pagos/" + primero + "/anulacion")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(motivo("monto equivocado")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje").value("No se puede anular el pago " + primero
+                        + ": el pago " + encadenado + " se cobró durante su período y puede estar encadenado a él."
+                        + " Anulá primero ese pago."));
+
+        assertFalse(pagoRepository.findById(primero).orElseThrow().isAnulado());
+
+        // En el orden correcto sí se puede: primero el encadenado, después el original.
+        for (Integer id : new Integer[]{encadenado, primero}) {
+            mockMvc.perform(post("/api/v1/pagos/" + id + "/anulacion")
+                            .header("Authorization", "Bearer " + tokenAdmin)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(motivo("monto equivocado")))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    /** Registra un pago por la API, como ADMIN, y devuelve su id. */
+    private Integer cobrar(Cliente cliente, Plan plan, LocalDate fechaPago) throws Exception {
+        MvcResult resultado = mockMvc.perform(post("/api/v1/pagos")
+                        .header("Authorization", "Bearer " + loguearComoAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new PagoRequest(cliente.getId(), plan.getId(), plan.getPrecio(), fechaPago))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(resultado.getResponse().getContentAsString()).get("id").asInt();
+    }
+
     /** Cuerpo JSON de una anulacion. */
     private String motivo(String texto) {
         return "{\"motivo\":\"" + texto + "\"}";
