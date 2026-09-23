@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.never;
@@ -119,5 +120,50 @@ class VencimientoServiceTest {
 
         assertEquals(EstadoCliente.ACTIVO, cliente.getEstado());
         verify(clienteRepository, never()).save(cliente);
+    }
+
+    @Test
+    @DisplayName("Recalcular con un pago todavía vigente deja al socio ACTIVO")
+    void recalcularEstadoDe_conPagoVigente_noDeberiaCambiarEstado() {
+        // Regresión: calcularEstadoPorDiasVencido devuelve null ("no tocar") y dentro de un
+        // Optional.map ese null se volvía un Optional vacío, que caía en el orElse(INACTIVO).
+        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", "11223344", null, null, EstadoCliente.ACTIVO, null);
+        Pago pagoVigente = pagoConVencimientoHace(-30, cliente);
+        when(clienteRepository.findById(1)).thenReturn(Optional.of(cliente));
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1))
+                .thenReturn(Optional.of(pagoVigente));
+
+        vencimientoService.recalcularEstadoDe(1);
+
+        assertEquals(EstadoCliente.ACTIVO, cliente.getEstado());
+        verify(clienteRepository, never()).save(cliente);
+    }
+
+    @Test
+    @DisplayName("Recalcular sin ningún pago válido pasa al socio a INACTIVO")
+    void recalcularEstadoDe_sinPagos_deberiaPasarAInactivo() {
+        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", "11223344", null, null, EstadoCliente.ACTIVO, null);
+        when(clienteRepository.findById(1)).thenReturn(Optional.of(cliente));
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1))
+                .thenReturn(Optional.empty());
+
+        vencimientoService.recalcularEstadoDe(1);
+
+        assertEquals(EstadoCliente.INACTIVO, cliente.getEstado());
+        verify(clienteRepository).save(cliente);
+    }
+
+    @Test
+    @DisplayName("Recalcular con el último pago vencido hace 2 días pasa al socio a MOROSO")
+    void recalcularEstadoDe_conPagoVencidoHaceDosDias_deberiaPasarAMoroso() {
+        Cliente cliente = new Cliente(1, "Lucía", "Pérez", "11223344", "11223344", null, null, EstadoCliente.ACTIVO, null);
+        Pago pagoVencido = pagoConVencimientoHace(2, cliente);
+        when(clienteRepository.findById(1)).thenReturn(Optional.of(cliente));
+        when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1))
+                .thenReturn(Optional.of(pagoVencido));
+
+        vencimientoService.recalcularEstadoDe(1);
+
+        assertEquals(EstadoCliente.MOROSO, cliente.getEstado());
     }
 }

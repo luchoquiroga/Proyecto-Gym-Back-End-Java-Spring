@@ -531,6 +531,35 @@ class PagoControllerIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("Anular un pago encadenado deja ACTIVO al socio si el pago anterior sigue vigente")
+    void anularPagoEncadenado_conOtroPagoVigente_deberiaSeguirActivo() throws Exception {
+        // Reproduce lo que encontró el front: cobrar, cobrar otro mes (se encadena) y anular
+        // el segundo. El vencimiento vuelve al del primero, que sigue vigente, así que el
+        // socio tiene que quedar ACTIVO.
+        Cliente cliente = clienteRepository.save(
+                new Cliente(null, "Olga", "Rey", "555-P43", "555P43", null, null, EstadoCliente.INACTIVO, null));
+        Plan plan = planRepository.findAll().getFirst();
+        LocalDate hoy = LocalDate.now();
+
+        Integer primero = cobrar(cliente, plan, hoy);
+        Integer encadenado = cobrar(cliente, plan, hoy);
+        assertEquals(EstadoCliente.ACTIVO, clienteRepository.findById(cliente.getId()).orElseThrow().getEstado());
+
+        mockMvc.perform(post("/api/v1/pagos/" + encadenado + "/anulacion")
+                        .header("Authorization", "Bearer " + loguearComoAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(motivo("cobrado dos veces")))
+                .andExpect(status().isOk());
+
+        LocalDate vencimientoDelPrimero = pagoRepository.findById(primero).orElseThrow().getFechaVencimiento();
+        mockMvc.perform(get("/api/v1/clientes/" + cliente.getId())
+                        .header("Authorization", "Bearer " + loguearComoAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fechaVencimiento").value(vencimientoDelPrimero.toString()))
+                .andExpect(jsonPath("$.estado").value("ACTIVO"));
+    }
+
     /** Registra un pago por la API, como ADMIN, y devuelve su id. */
     private Integer cobrar(Cliente cliente, Plan plan, LocalDate fechaPago) throws Exception {
         MvcResult resultado = mockMvc.perform(post("/api/v1/pagos")
