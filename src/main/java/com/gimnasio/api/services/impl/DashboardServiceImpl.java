@@ -1,12 +1,16 @@
 package com.gimnasio.api.services.impl;
 
 import com.gimnasio.api.dto.GananciasMensualesResponse;
+import com.gimnasio.api.dto.SociosPorEstadoResponse;
+import com.gimnasio.api.models.enums.EstadoCliente;
+import com.gimnasio.api.repositories.ClienteRepository;
 import com.gimnasio.api.repositories.PagoRepository;
 import com.gimnasio.api.services.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 
@@ -18,11 +22,13 @@ import java.time.YearMonth;
 public class DashboardServiceImpl implements DashboardService {
 
     private final PagoRepository pagoRepository;
+    private final ClienteRepository clienteRepository;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
     public GananciasMensualesResponse obtenerGananciasMensuales(Integer anio, Integer mes) {
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = LocalDate.now(clock);
         int anioEfectivo = (anio != null) ? anio : hoy.getYear();
         int mesEfectivo = (mes != null) ? mes : hoy.getMonthValue();
 
@@ -36,5 +42,14 @@ public class DashboardServiceImpl implements DashboardService {
         long cantidadPagos = pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(inicio, fin);
 
         return new GananciasMensualesResponse(anioEfectivo, mesEfectivo, totalGanancias, cantidadPagos);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SociosPorEstadoResponse contarSociosPorEstado() {
+        return new SociosPorEstadoResponse(
+                clienteRepository.countByEstado(EstadoCliente.ACTIVO),
+                clienteRepository.countByEstado(EstadoCliente.MOROSO),
+                clienteRepository.countByEstado(EstadoCliente.INACTIVO));
     }
 }

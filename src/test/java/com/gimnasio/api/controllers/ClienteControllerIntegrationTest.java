@@ -89,6 +89,18 @@ class ClienteControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("Registro con contraseña de menos de 8 caracteres debe devolver 400 por validación")
+    void registro_conContrasenaCorta_deberiaDevolver400() throws Exception {
+        ClienteRegistroRequest request = new ClienteRegistroRequest("CUALQUIERA", "corta@test.com", "a");
+
+        mockMvc.perform(post("/api/v1/clientes/registro")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.contrasena").value("La contraseña debe tener al menos 8 caracteres"));
+    }
+
+    @Test
     @DisplayName("Registro exitoso completa email, hashea la contraseña y anula el código usado")
     void registro_conCodigoValido_deberiaCompletarPerfil() throws Exception {
         Cliente cliente = clienteRepository.save(

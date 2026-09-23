@@ -10,9 +10,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Implementación de la lógica de negocio para actualizar el estado de los clientes
@@ -27,11 +29,12 @@ public class VencimientoServiceImpl implements VencimientoService {
 
     private final PagoRepository pagoRepository;
     private final ClienteRepository clienteRepository;
+    private final Clock clock;
 
     @Override
     @Transactional
     public void actualizarEstadosPorVencimiento() {
-        LocalDate hoy = LocalDate.now();
+        LocalDate hoy = LocalDate.now(clock);
         List<Pago> ultimosPagos = pagoRepository.findUltimoPagoPorCadaCliente();
 
         for (Pago ultimoPago : ultimosPagos) {
@@ -60,13 +63,19 @@ public class VencimientoServiceImpl implements VencimientoService {
             return;
         }
 
-        EstadoCliente estadoCalculado = pagoRepository
-                .findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(clienteId)
-                .map(pago -> calcularEstadoPorDiasVencido(
-                        ChronoUnit.DAYS.between(pago.getFechaVencimiento(), LocalDate.now())))
-                // Sin ningún pago vigente el socio no está al día con nada: es el caso de
+        Optional<Pago> ultimoPago = pagoRepository
+                .findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(clienteId);
+
+        // Los dos casos van separados a propósito. calcularEstadoPorDiasVencido devuelve null
+        // para "está al día, no tocar", y dentro de un Optional.map ese null se convierte en
+        // un Optional vacío: el orElse lo confundía con "no tiene ningún pago" y pasaba a
+        // INACTIVO a todo socio que, después de la anulación, seguía teniendo un pago vigente.
+        EstadoCliente estadoCalculado = ultimoPago.isEmpty()
+                // Sin ningún pago válido el socio no está al día con nada: es el caso de
                 // anular el único pago que tenía.
-                .orElse(EstadoCliente.INACTIVO);
+                ? EstadoCliente.INACTIVO
+                : calcularEstadoPorDiasVencido(
+                        ChronoUnit.DAYS.between(ultimoPago.get().getFechaVencimiento(), LocalDate.now(clock)));
 
         if (estadoCalculado != null && estadoCalculado.esPeorQue(cliente.getEstado())) {
             cliente.setEstado(estadoCalculado);

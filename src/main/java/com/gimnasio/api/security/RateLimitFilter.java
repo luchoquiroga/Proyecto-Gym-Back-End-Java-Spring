@@ -12,6 +12,7 @@ import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Set;
@@ -56,6 +57,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } else {
             response.setStatus(429);
+            // Sin charset explícito el contenedor escribe en ISO-8859-1 y los acentos se rompen.
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write(
                     "{\"status\":429,\"mensaje\":\"Demasiados intentos, esperá un minuto\"}"

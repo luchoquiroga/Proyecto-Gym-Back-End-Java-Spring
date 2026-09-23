@@ -1,6 +1,7 @@
 package com.gimnasio.api.controllers;
 
 import com.gimnasio.api.dto.GananciasMensualesResponse;
+import com.gimnasio.api.dto.SociosPorEstadoResponse;
 import com.gimnasio.api.services.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -29,5 +30,13 @@ public class DashboardController {
             @RequestParam(required = false) Integer anio,
             @RequestParam(required = false) Integer mes) {
         return ResponseEntity.ok(dashboardService.obtenerGananciasMensuales(anio, mes));
+    }
+
+    /**
+     * Devuelve cuántos socios hay hoy en cada estado (activos, morosos, inactivos).
+     */
+    @GetMapping("/socios")
+    public ResponseEntity<SociosPorEstadoResponse> contarSociosPorEstado() {
+        return ResponseEntity.ok(dashboardService.contarSociosPorEstado());
     }
 }

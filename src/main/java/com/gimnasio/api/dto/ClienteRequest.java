@@ -60,5 +60,6 @@ public class ClienteRequest {
      * flujo normal de mostrador), y el cliente las completa después por su cuenta en
      * /registro usando el código de activación que se le entregó en persona.
      */
+    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
     private String contrasena;
 }

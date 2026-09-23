@@ -31,6 +31,27 @@ public interface PagoRepository extends JpaRepository<Pago, Integer> {
             "(SELECT MAX(p2.fechaVencimiento) FROM Pago p2 WHERE p2.cliente = p.cliente AND p2.anulado = false)")
     List<Pago> findUltimoPagoPorCadaCliente();
 
+    // Hasta cuándo estaba cubierto el socio a una fecha dada, para encadenar un cobro
+    // anticipado al período vigente. Mira solo los pagos cobrados hasta esa fecha: así un
+    // pago retroactivo se calcula como si se hubiera cargado a tiempo, sin engancharse a
+    // una cobertura que en ese momento todavía no existía.
+    @Query("SELECT MAX(p.fechaVencimiento) FROM Pago p " +
+            "WHERE p.cliente.id = :clienteId AND p.anulado = false AND p.fechaPago <= :fecha")
+    Optional<LocalDate> findVencimientoVigenteAl(@Param("clienteId") Integer clienteId,
+                                                 @Param("fecha") LocalDate fecha);
+
+    // Pagos válidos del mismo socio que pudieron encadenarse a este: registrados después
+    // (id mayor: los ids son secuenciales) y cobrados mientras este estaba vigente. Anular
+    // este les dejaría días que nadie pagó. Un pago registrado antes no pudo encadenarse a
+    // uno que todavía no existía, aunque tenga fecha de cobro posterior.
+    @Query("SELECT p FROM Pago p WHERE p.cliente.id = :clienteId AND p.anulado = false " +
+            "AND p.id > :pagoId AND p.fechaPago >= :desde AND p.fechaPago < :hasta " +
+            "ORDER BY p.fechaPago, p.id")
+    List<Pago> findCobradosDuranteElPeriodo(@Param("clienteId") Integer clienteId,
+                                            @Param("pagoId") Integer pagoId,
+                                            @Param("desde") LocalDate desde,
+                                            @Param("hasta") LocalDate hasta);
+
     // Suma total de lo abonado en un rango de fechas de pago (para reportes de ganancias)
     // Las dos consultas del dashboard ignoran los anulados: un pago anulado no es plata que
     // entró, así que no puede sumar al total del mes ni contar como una operación.

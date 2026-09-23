@@ -2,6 +2,7 @@ package com.gimnasio.api.dto;
 
 import com.gimnasio.api.models.enums.RolUsuario;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,6 +21,7 @@ public class UsuarioRequest {
     private String nombre;
 
     @NotBlank(message = "La contraseña es obligatoria")
+    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
     private String contrasena;
 
     @NotNull(message = "El rol es obligatorio")

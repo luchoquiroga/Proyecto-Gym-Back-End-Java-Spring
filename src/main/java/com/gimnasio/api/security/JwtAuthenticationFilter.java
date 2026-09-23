@@ -16,6 +16,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.util.List;
 
@@ -69,6 +70,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private void responderNoAutorizado(HttpServletResponse response, String mensaje) throws IOException {
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        // Sin charset explícito el contenedor escribe en ISO-8859-1 y los acentos se rompen.
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write(
                 "{\"status\":401,\"mensaje\":\"" + mensaje + "\"}"
