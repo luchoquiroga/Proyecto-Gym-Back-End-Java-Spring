@@ -25,6 +25,14 @@ releer explícitamente toda la matriz.
 - **`ARQUITECTURA-APPS.md`** — qué app consume qué parte del API (escritorio,
   web, mobile) y qué audiencia tiene cada una. Es el complemento de producto
   de `AUTHZ-MATRIX.md`: la matriz dice quién *puede*, este dice quién *llama*.
+- **`2026-09-18-stack-frontend.md`** — con qué se construye la web y el shell de
+  escritorio, cómo se usa cada pieza y por qué. Es el hermano técnico de
+  `ARQUITECTURA-APPS.md`: aquel dice qué app consume qué, este dice con qué se
+  hace. **Su copia viva está en el repo del front**
+  (`Gym-Project-Front-End\specs\STACK.md`), igual que los tickets de la web: el
+  front tiene su propio `specs/` con el mismo hábito que este, incluido un
+  `CONTRATO-API.md` que resume lo que necesita saber de este backend. Si el
+  contrato cambia acá, hay que corregirlo allá.
 - **`DESPLIEGUE.md`** — qué configurar en Render y Neon antes del primer
   arranque, y los modos de falla que no dan un error obvio.
 - **`TEMPLATE.md`** — la plantilla a copiar para especificar un feature nuevo

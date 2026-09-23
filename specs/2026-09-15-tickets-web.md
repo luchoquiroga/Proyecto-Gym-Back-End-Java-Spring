@@ -1,3 +1,7 @@
+> **La copia viva de este documento está en el repo del front**, en
+> `Gym-Project-Front-End\specs\TICKETS.md`. Este archivo queda como registro de
+> cómo se decidió el backlog; si hay que tocar un ticket, se toca allá.
+
 # Tickets de UI: la web
 
 Fecha: 2026-09-15
