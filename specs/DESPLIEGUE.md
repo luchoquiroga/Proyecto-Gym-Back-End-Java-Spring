@@ -54,6 +54,7 @@ El `?sslmode=require` no es opcional con Neon: sin él, la conexión falla.
 | `JWT_REFRESH_EXPIRATION_MS` | No | Default 30 días |
 | `REFRESH_COOKIE_SECURE` | No | Default `true`, correcto en producción |
 | `REFRESH_COOKIE_SAMESITE` | No | Default `None`, para que la cookie viaje entre dominios distintos |
+| `RATE_LIMIT_TRUSTED_PROXIES` | No (default `1`) | Cuántos proxies propios hay delante de la app, para que el límite de intentos de login tome la IP real del usuario de `X-Forwarded-For`. `1` = solo Render; `2` = Vercel + Render. Ver §7 |
 
 ### Sobre `JWT_SECRET`
 
@@ -147,3 +148,45 @@ recalcular el estado al consultarlo en vez de por tarea programada.
 **Cambiar `CORS_ALLOWED_ORIGINS` importa solo para el navegador.** La app de
 escritorio no es un browser y no aplica CORS; la web sí, y si el origen no está
 en la lista el login falla de una forma poco obvia (el request ni sale).
+
+---
+
+## 7. Pendiente: la web publicada en Vercel (ticket B8 del front)
+
+La web se va a publicar en Vercel pidiéndole el API a su propio dominio, y
+`vercel.json` reenvía `/api/*` a Render (así la cookie de refresh es del
+dominio de la web y Safari no la bloquea). **Está en pausa hasta que el dueño
+decida el hosting.** Lo que ya está hecho y lo que falta:
+
+**Hecho (2026-09-24): el límite de intentos de login por IP.** Antes usaba
+`getRemoteAddr()`, que detrás del balanceador de Render es la IP del
+balanceador: todos los usuarios compartían un solo cupo de 5 intentos por
+minuto, y un socio que se equivocaba cinco veces le bloqueaba el login al
+mostrador. Ahora `RateLimitFilter` toma la IP de `X-Forwarded-For`, contando
+`RATE_LIMIT_TRUSTED_PROXIES` entradas desde la derecha (las de la izquierda las
+puede escribir cualquiera). Limitación aceptada: con `2`, quien llame directo a
+`*.onrender.com` salteando Vercel elige la IP que se toma y puede cambiar de
+cupo en cada intento.
+
+**Falta al publicar la web:**
+
+1. **Confirmar el valor de `RATE_LIMIT_TRUSTED_PROXIES` contra el header real.**
+   El `1` asume que Render agrega una sola entrada al final. No se verificó
+   contra producción: si Render (o Cloudflare delante de Render) agrega más de
+   una, el valor correcto es otro. La prueba: seis logins fallidos desde el
+   celular con datos móviles no tienen que bloquear el login desde la PC en
+   otra red. Con Vercel delante, pasar a `2` y repetir la prueba.
+2. **`CORS_ALLOWED_ORIGINS`:** agregar el origen de la web publicada
+   (`https://<proyecto>.vercel.app`, y el dominio propio si se usa) **sin sacar**
+   `http://localhost:5173`, separados por coma. Aunque con el proxy el navegador
+   no hace un pedido cruzado, Vercel reenvía el header `Origin` y Spring rechaza
+   un origen desconocido con **403 "Invalid CORS request"**. Si el login desde la
+   web publicada da ese 403, es esto.
+3. **`REFRESH_COOKIE_SAMESITE=Lax`.** `None` era para web y API en dominios
+   distintos; detrás del proxy son el mismo sitio, y `Lax` suma protección
+   contra CSRF. `REFRESH_COOKIE_SECURE` sigue en `true`.
+4. **Cold start (decisión del dueño).** En el plan gratis, la primera petición
+   después de dormir tardó más de 90 segundos (medido el 2026-09-24) y detrás de
+   Vercel puede cortarse antes. Opciones: un cron externo que pegue a `/ping`
+   cada ~10 minutos, o el plan pago. Anotar acá la que se elija. Resuelve también
+   el problema del scheduler dormido de §6.

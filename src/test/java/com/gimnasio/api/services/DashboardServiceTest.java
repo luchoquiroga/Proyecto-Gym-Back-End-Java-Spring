@@ -20,9 +20,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.YearMonth;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -101,5 +103,57 @@ class DashboardServiceTest {
         assertEquals(12L, resultado.getActivos());
         assertEquals(3L, resultado.getMorosos());
         assertEquals(5L, resultado.getInactivos());
+    }
+
+    @Test
+    @DisplayName("La serie sin parámetros son los 12 meses hasta el actual de Argentina, del más viejo al más nuevo")
+    void obtenerGananciasPorMes_sinParametros_deberiaDevolverLosUltimos12Meses() {
+        when(pagoRepository.sumarMontoAbonadoEntre(any(), any())).thenReturn(0.0);
+        when(pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(any(), any())).thenReturn(0L);
+
+        List<GananciasMensualesResponse> serie = dashboardService.obtenerGananciasPorMes(null, null);
+
+        assertEquals(12, serie.size());
+        assertEquals(2025, serie.get(0).getAnio());
+        assertEquals(10, serie.get(0).getMes());
+        // En UTC ya es octubre: si la serie terminara en 10, estaría usando la zona de la JVM.
+        assertEquals(2026, serie.get(11).getAnio());
+        assertEquals(9, serie.get(11).getMes());
+    }
+
+    @Test
+    @DisplayName("La serie cruza el cambio de año y rellena en cero los meses sin cobros")
+    void obtenerGananciasPorMes_conMesSinCobros_deberiaTraerloEnCero() {
+        YearMonth diciembre = YearMonth.of(2025, 12);
+        when(pagoRepository.sumarMontoAbonadoEntre(any(), any())).thenReturn(0.0);
+        when(pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(any(), any())).thenReturn(0L);
+        when(pagoRepository.sumarMontoAbonadoEntre(diciembre.atDay(1), diciembre.atEndOfMonth())).thenReturn(50000.0);
+        when(pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(diciembre.atDay(1), diciembre.atEndOfMonth())).thenReturn(2L);
+
+        List<GananciasMensualesResponse> serie =
+                dashboardService.obtenerGananciasPorMes(YearMonth.of(2025, 11), YearMonth.of(2026, 1));
+
+        assertEquals(3, serie.size());
+        assertEquals(0.0, serie.get(0).getTotalGanancias());
+        assertEquals(50000.0, serie.get(1).getTotalGanancias());
+        assertEquals(2L, serie.get(1).getCantidadPagos());
+        assertEquals(2026, serie.get(2).getAnio());
+        assertEquals(1, serie.get(2).getMes());
+    }
+
+    @Test
+    @DisplayName("Una serie con desde posterior a hasta se rechaza")
+    void obtenerGananciasPorMes_conRangoInvertido_deberiaLanzarExcepcion() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> dashboardService.obtenerGananciasPorMes(YearMonth.of(2026, 5), YearMonth.of(2026, 4)));
+        assertEquals("'desde' no puede ser posterior a 'hasta'", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Una serie de más de 24 meses se rechaza")
+    void obtenerGananciasPorMes_conRangoMayorAlTope_deberiaLanzarExcepcion() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> dashboardService.obtenerGananciasPorMes(YearMonth.of(2024, 1), YearMonth.of(2026, 1)));
+        assertEquals("El rango no puede superar los 24 meses", ex.getMessage());
     }
 }

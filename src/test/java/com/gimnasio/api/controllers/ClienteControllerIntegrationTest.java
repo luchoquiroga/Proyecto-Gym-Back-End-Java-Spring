@@ -634,4 +634,26 @@ class ClienteControllerIntegrationTest {
         JsonNode json = objectMapper.readTree(resultado.getResponse().getContentAsString());
         return json.get(campo).asText();
     }
+
+    @Test
+    @DisplayName("Ordenar por un campo que no existe devuelve 400 nombrando el campo, no 500")
+    void listarClientes_conSortInexistente_deberiaDevolver400() throws Exception {
+        mockMvc.perform(get("/api/v1/clientes").param("sort", "noExiste,asc")
+                        .header("Authorization", "Bearer " + loguearComoAdmin()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje").value("No se puede ordenar por 'noExiste'"));
+    }
+
+    @Test
+    @DisplayName("Ordenar por un campo que existe sigue ordenando")
+    void listarClientes_conSortValido_deberiaOrdenar() throws Exception {
+        clienteRepository.save(new Cliente(null, "Orden", "Zzzzordenb", "555-S01", "555S01", null, null, EstadoCliente.INACTIVO, null));
+        clienteRepository.save(new Cliente(null, "Orden", "Zzzzordena", "555-S02", "555S02", null, null, EstadoCliente.INACTIVO, null));
+
+        mockMvc.perform(get("/api/v1/clientes").param("sort", "apellido,desc").param("size", "2")
+                        .header("Authorization", "Bearer " + loguearComoAdmin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contenido[0].apellido").value("Zzzzordenb"))
+                .andExpect(jsonPath("$.contenido[1].apellido").value("Zzzzordena"));
+    }
 }
