@@ -5,12 +5,14 @@ import com.gimnasio.api.exceptions.RecursoDuplicadoException;
 import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -56,6 +58,34 @@ public class GlobalExceptionHandler {
                 LocalDateTime.now()
         );
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ErrorResponse> manejarOrdenInvalido(PropertyReferenceException ex) {
+        // La lanza Spring Data cuando el ?sort= de un listado paginado nombra un campo que la
+        // entidad no tiene. Es un error de quien llama, no del servidor: sin este handler caía
+        // en el 500 genérico. Se nombra el campo porque es el que mandó el propio llamador,
+        // no un detalle interno (ex.getMessage() sí lo sería: lista las propiedades cercanas).
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "No se puede ordenar por '" + ex.getPropertyName() + "'",
+                LocalDateTime.now()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> manejarTipoDeParametroInvalido(MethodArgumentTypeMismatchException ex) {
+        // La lanza Spring cuando un parámetro de la URL no se puede convertir al tipo del método:
+        // ?anio=abc para un Integer, o /clientes/abc para un id numérico. Igual que el sort
+        // inexistente, es un error de quien llama. Se nombra el parámetro pero no se repite el
+        // valor recibido: no hace falta para corregirlo y así no se refleja input arbitrario.
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "El parámetro '" + ex.getName() + "' tiene un valor inválido",
+                LocalDateTime.now()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

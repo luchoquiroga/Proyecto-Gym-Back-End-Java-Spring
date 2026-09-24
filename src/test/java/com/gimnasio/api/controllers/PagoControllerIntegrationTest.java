@@ -665,4 +665,23 @@ class PagoControllerIntegrationTest {
                 .andReturn();
         return objectMapper.readTree(resultado.getResponse().getContentAsString()).get("accessToken").asText();
     }
+
+    @Test
+    @DisplayName("Ordenar los pagos por un campo que no existe devuelve 400 nombrando el campo")
+    void listarPagos_conSortInexistente_deberiaDevolver400() throws Exception {
+        mockMvc.perform(get("/api/v1/pagos").param("sort", "noExiste,asc")
+                        .header("Authorization", "Bearer " + loguearComoAdmin()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje").value("No se puede ordenar por 'noExiste'"));
+    }
+
+    @Test
+    @DisplayName("El sort inexistente tambien da 400 cuando el listado va filtrado por fechas")
+    void listarPagosPorFechas_conSortInexistente_deberiaDevolver400() throws Exception {
+        mockMvc.perform(get("/api/v1/pagos").param("desde", "2026-01-01").param("hasta", "2026-01-31")
+                        .param("sort", "noExiste,asc")
+                        .header("Authorization", "Bearer " + loguearComoAdmin()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje").value("No se puede ordenar por 'noExiste'"));
+    }
 }

@@ -2,7 +2,7 @@
 
 Fuente de verdad de quién puede llamar a cada endpoint. Refleja el estado de
 `SecurityConfig.java` + los chequeos de ownership hechos a mano en los
-controllers, al 2026-09-23. Si tocás cualquiera de los dos, actualizá esta
+controllers, al 2026-09-24. Si tocás cualquiera de los dos, actualizá esta
 tabla en el mismo commit.
 
 Roles/principales que existen hoy:
@@ -62,6 +62,7 @@ Roles/principales que existen hoy:
 | Método | Ruta | Quién puede | Notas |
 |---|---|---|---|
 | GET | `/ganancias-mensuales` | ADMIN | total cobrado y cantidad de pagos de un mes (`?anio=&mes=`, sin parámetros el mes en curso de Argentina) |
+| GET | `/ganancias-por-mes` | ADMIN | agregado 2026-09-24: la serie de `/ganancias-mensuales` para un rango (`?desde=AAAA-MM&hasta=AAAA-MM`, inclusive, tope 24 meses; sin parámetros los últimos 12). Trae también los meses en cero, y cada mes sale del mismo método que `/ganancias-mensuales`, así que suman lo mismo |
 | GET | `/socios` | ADMIN | agregado 2026-09-23 (Fase 9): cantidad actual de socios por estado. Es una foto de hoy y por eso no va dentro de `/ganancias-mensuales`, que responde por un mes elegido. No es monetario, pero sigue la regla de ruta del dashboard entero |
 
 La regla es de ruta (`/api/v1/dashboard/**` → ADMIN): cualquier endpoint nuevo bajo

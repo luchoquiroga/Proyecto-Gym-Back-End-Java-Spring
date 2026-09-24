@@ -480,4 +480,13 @@ class UsuarioControllerIntegrationTest {
 
         return extraerCampo(loginResult, "accessToken");
     }
+
+    @Test
+    @DisplayName("Ordenar las cuentas por un campo que no existe devuelve 400 nombrando el campo")
+    void listarUsuarios_conSortInexistente_deberiaDevolver400() throws Exception {
+        mockMvc.perform(get("/api/v1/usuarios").param("sort", "noExiste,asc")
+                        .header("Authorization", "Bearer " + tokenDeAdmin()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje").value("No se puede ordenar por 'noExiste'"));
+    }
 }
