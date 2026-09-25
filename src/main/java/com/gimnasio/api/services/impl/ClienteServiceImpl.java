@@ -228,10 +228,11 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     @Transactional(readOnly = true)
     public boolean autenticar(String email, String contrasena) {
-        return clienteRepository.findByEmailIgnoreCase(normalizarEmail(email))
-                .map(cliente -> cliente.getContrasena() != null
-                        && passwordEncoder.matches(contrasena, cliente.getContrasena()))
-                .orElse(false);
+        Cliente cliente = clienteRepository.findByEmailIgnoreCase(normalizarEmail(email)).orElse(null);
+        // BCrypt corre SIEMPRE, también sin cuenta o sin contraseña cargada todavía: si se
+        // salteara, el tiempo de respuesta delataría qué emails están registrados (ver
+        // BCryptTiempoConstantePasswordEncoder, que devuelve false ante un hash nulo).
+        return passwordEncoder.matches(contrasena, cliente == null ? null : cliente.getContrasena());
     }
 
     @Override

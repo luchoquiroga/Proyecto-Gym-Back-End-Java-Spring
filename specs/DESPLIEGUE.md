@@ -55,6 +55,7 @@ El `?sslmode=require` no es opcional con Neon: sin él, la conexión falla.
 | `REFRESH_COOKIE_SECURE` | No | Default `true`, correcto en producción |
 | `REFRESH_COOKIE_SAMESITE` | No | Default `None`, para que la cookie viaje entre dominios distintos |
 | `RATE_LIMIT_TRUSTED_PROXIES` | No (default `1`) | Cuántos proxies propios hay delante de la app, para que el límite de intentos de login tome la IP real del usuario de `X-Forwarded-For`. `1` = solo Render; `2` = Vercel + Render. Ver §7 |
+| `SWAGGER_ENABLED` | No (default `false`) | `true` publica Swagger (`/swagger-ui/index.html`, `/v3/api-docs`). Apagado en producción a propósito: muestra el mapa completo de la API. Prenderlo solo un rato si hace falta consultar el contrato desplegado |
 
 ### Sobre `JWT_SECRET`
 
@@ -127,7 +128,8 @@ curl -X POST https://<tu-servicio>.onrender.com/api/v1/usuarios/login \
   -d '{"nombre":"admin","contrasena":"<la que configuraste>"}'
 ```
 
-El contrato completo queda en `https://<tu-servicio>.onrender.com/swagger-ui/index.html`.
+Swagger está apagado en producción (ver `SWAGGER_ENABLED`): el contrato se consulta en
+local, en `http://localhost:8080/swagger-ui/index.html`.
 
 ---
 
@@ -148,6 +150,16 @@ recalcular el estado al consultarlo en vez de por tarea programada.
 **Cambiar `CORS_ALLOWED_ORIGINS` importa solo para el navegador.** La app de
 escritorio no es un browser y no aplica CORS; la web sí, y si el origen no está
 en la lista el login falla de una forma poco obvia (el request ni sale).
+
+**Refresh tokens: dos pendientes conocidos, decididos el 2026-09-25.**
+Ninguno se hace por ahora, a propósito:
+- *No se detecta el reuso de un refresh token ya rotado.* Cerrar todas las sesiones de la
+  cuenta cuando llega uno revocado tiene un falso positivo concreto: dos pestañas que
+  refrescan casi a la vez (el front serializa el refresh dentro de una pestaña, no entre
+  pestañas), y la segunda desloguearía al usuario de todo.
+- *Las tablas `refresh_tokens` y `cliente_refresh_tokens` no se limpian.* Crecen unas pocas
+  filas por login; con el volumen del gimnasio no molesta. Limpiarlas es un `DELETE` de datos
+  y necesita autorización explícita antes de programarse.
 
 ---
 

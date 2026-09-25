@@ -64,9 +64,11 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Override
     @Transactional(readOnly = true)
     public boolean autenticar(String nombre, String contrasena) {
-        return usuarioRepository.findByNombre(nombre)
-                .map(usuario -> usuario.isActivo() && passwordEncoder.matches(contrasena, usuario.getContrasena()))
-                .orElse(false);
+        Usuario usuario = usuarioRepository.findByNombre(nombre).orElse(null);
+        // BCrypt corre SIEMPRE, exista la cuenta o no y esté activa o no: si se salteara, el
+        // tiempo de respuesta delataría qué nombres existen (ver BCryptTiempoConstantePasswordEncoder).
+        boolean contrasenaCorrecta = passwordEncoder.matches(contrasena, usuario == null ? null : usuario.getContrasena());
+        return usuario != null && usuario.isActivo() && contrasenaCorrecta;
     }
 
     @Override
