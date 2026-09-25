@@ -35,6 +35,9 @@ public class UsuarioServiceImpl implements UsuarioService {
         if (usuario.getContrasena() == null || usuario.getContrasena().trim().isEmpty()) {
             throw new IllegalArgumentException("La contraseña es obligatoria.");
         }
+        // Es el identificador de login: "juan " y "juan" no pueden ser dos cuentas distintas,
+        // y nadie tipea el espacio del final al loguearse.
+        usuario.setNombre(usuario.getNombre().trim());
         // Una cuenta dada de baja sigue ocupando su nombre (UNIQUE desde V4), así que el
         // duplicado se avisa distinto: el camino no es crear otra igual sino reactivar esa.
         usuarioRepository.findByNombre(usuario.getNombre()).ifPresent(existente -> {
@@ -61,9 +64,11 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Override
     @Transactional(readOnly = true)
     public boolean autenticar(String nombre, String contrasena) {
-        return usuarioRepository.findByNombre(nombre)
-                .map(usuario -> usuario.isActivo() && passwordEncoder.matches(contrasena, usuario.getContrasena()))
-                .orElse(false);
+        Usuario usuario = usuarioRepository.findByNombre(nombre).orElse(null);
+        // BCrypt corre SIEMPRE, exista la cuenta o no y esté activa o no: si se salteara, el
+        // tiempo de respuesta delataría qué nombres existen (ver BCryptTiempoConstantePasswordEncoder).
+        boolean contrasenaCorrecta = passwordEncoder.matches(contrasena, usuario == null ? null : usuario.getContrasena());
+        return usuario != null && usuario.isActivo() && contrasenaCorrecta;
     }
 
     @Override

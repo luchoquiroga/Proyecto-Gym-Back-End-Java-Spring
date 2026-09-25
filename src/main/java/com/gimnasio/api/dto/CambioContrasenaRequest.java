@@ -27,6 +27,8 @@ public class CambioContrasenaRequest {
     private String contrasenaActual;
 
     @NotBlank(message = "La nueva contraseña es obligatoria")
-    @Size(min = 8, message = "La nueva contraseña debe tener al menos 8 caracteres")
+    // 72 porque BCrypt solo usa los primeros 72 bytes: más largo, el encoder la rechaza con
+    // un error en inglés, y antes ni eso (dos claves con el mismo comienzo eran iguales).
+    @Size(min = 8, max = 72, message = "La nueva contraseña debe tener entre 8 y 72 caracteres")
     private String nuevaContrasena;
 }

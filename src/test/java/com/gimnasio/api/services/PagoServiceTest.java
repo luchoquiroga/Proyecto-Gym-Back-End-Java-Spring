@@ -78,7 +78,7 @@ class PagoServiceTest {
         LocalDate fechaPago = HOY;
         LocalDate fechaVencimientoEsperada = fechaPago.plusDays(30);
 
-        when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteInactivo));
+        when(clienteRepository.findByIdParaActualizar(1)).thenReturn(Optional.of(clienteInactivo));
         when(planRepository.findById(1)).thenReturn(Optional.of(planMensual));
         when(usuarioRepository.findById(7)).thenReturn(Optional.of(cajero));
         when(pagoRepository.save(any(Pago.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -108,7 +108,7 @@ class PagoServiceTest {
         // Pago cargado con fecha vieja: 60 días atrás + 30 de plan = vencido hace 30.
         LocalDate fechaPago = HOY.minusDays(60);
 
-        when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteInactivo));
+        when(clienteRepository.findByIdParaActualizar(1)).thenReturn(Optional.of(clienteInactivo));
         when(planRepository.findById(1)).thenReturn(Optional.of(planMensual));
         when(usuarioRepository.findById(7)).thenReturn(Optional.of(cajero));
         when(pagoRepository.save(any(Pago.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -125,7 +125,7 @@ class PagoServiceTest {
     @Test
     @DisplayName("Un pago menor al precio del plan debe rechazarse y no registrarse")
     void registrarPago_cuandoMontoEsMenorAlPrecioDelPlan_deberiaRechazar() {
-        when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteInactivo));
+        when(clienteRepository.findByIdParaActualizar(1)).thenReturn(Optional.of(clienteInactivo));
         when(planRepository.findById(1)).thenReturn(Optional.of(planMensual));
         when(usuarioRepository.findById(7)).thenReturn(Optional.of(cajero));
 
@@ -143,7 +143,7 @@ class PagoServiceTest {
     @Test
     @DisplayName("Sin monto explícito se cobra el precio oficial del plan")
     void registrarPago_sinMonto_deberiaCobrarPrecioDelPlan() {
-        when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteInactivo));
+        when(clienteRepository.findByIdParaActualizar(1)).thenReturn(Optional.of(clienteInactivo));
         when(planRepository.findById(1)).thenReturn(Optional.of(planMensual));
         when(usuarioRepository.findById(7)).thenReturn(Optional.of(cajero));
         when(pagoRepository.save(any(Pago.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -156,7 +156,7 @@ class PagoServiceTest {
     @Test
     @DisplayName("Debe lanzar excepción si el cliente no existe al registrar un pago")
     void registrarPago_cuandoClienteNoExiste_deberiaLanzarExcepcion() {
-        when(clienteRepository.findById(99)).thenReturn(Optional.empty());
+        when(clienteRepository.findByIdParaActualizar(99)).thenReturn(Optional.empty());
 
         RecursoNoEncontradoException ex = assertThrows(RecursoNoEncontradoException.class, () -> {
             pagoService.registrarPago(99, 1, 32500.0, HOY, 7);
@@ -169,7 +169,7 @@ class PagoServiceTest {
     @Test
     @DisplayName("Debe lanzar excepción si el plan no existe al registrar un pago")
     void registrarPago_cuandoPlanNoExiste_deberiaLanzarExcepcion() {
-        when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteInactivo));
+        when(clienteRepository.findByIdParaActualizar(1)).thenReturn(Optional.of(clienteInactivo));
         when(planRepository.findById(99)).thenReturn(Optional.empty());
 
         RecursoNoEncontradoException ex = assertThrows(RecursoNoEncontradoException.class, () -> {
@@ -235,7 +235,7 @@ class PagoServiceTest {
     }
 
     private void prepararCobro() {
-        when(clienteRepository.findById(1)).thenReturn(Optional.of(clienteInactivo));
+        when(clienteRepository.findByIdParaActualizar(1)).thenReturn(Optional.of(clienteInactivo));
         when(planRepository.findById(1)).thenReturn(Optional.of(planMensual));
         when(usuarioRepository.findById(7)).thenReturn(Optional.of(cajero));
         when(pagoRepository.save(any(Pago.class))).thenAnswer(invocation -> invocation.getArgument(0));

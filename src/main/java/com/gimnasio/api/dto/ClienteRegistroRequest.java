@@ -23,9 +23,12 @@ public class ClienteRegistroRequest {
 
     @NotBlank(message = "El email es obligatorio")
     @Email(message = "El email no tiene un formato válido")
+    @Size(max = 150, message = "El email no puede superar los 150 caracteres")
     private String email;
 
     @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
+    // 72 porque BCrypt solo usa los primeros 72 bytes: más largo, el encoder la rechaza con
+    // un error en inglés, y antes ni eso (dos claves con el mismo comienzo eran iguales).
+    @Size(min = 8, max = 72, message = "La contraseña debe tener entre 8 y 72 caracteres")
     private String contrasena;
 }

@@ -1,5 +1,6 @@
 package com.gimnasio.api.dto;
 
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
@@ -24,6 +25,9 @@ public class PagoRequest {
     private Integer planId;
 
     @Positive(message = "El monto abonado debe ser mayor a cero")
+    // Tope de cordura: un 1e400 en el JSON llega como Infinity, se guardaba tal cual y
+    // convertía en Infinity las ganancias de todo el mes (que además no es JSON válido).
+    @DecimalMax(value = "1000000000", message = "El monto abonado no puede superar los 1.000.000.000")
     private Double montoAbonado;
 
     private LocalDate fechaPago;

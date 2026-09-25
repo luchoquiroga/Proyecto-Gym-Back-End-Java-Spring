@@ -65,7 +65,7 @@ class ClienteServiceTest {
 
         assertNull(resultado.getEmail());
         assertNull(resultado.getContrasena());
-        verify(clienteRepository, never()).findByEmail(any());
+        verify(clienteRepository, never()).findByEmailIgnoreCase(any());
     }
 
     @Test
@@ -83,7 +83,7 @@ class ClienteServiceTest {
     @Test
     @DisplayName("Crear con credenciales directas no debe generar código de activación (no hace falta /registro)")
     void crear_conCredenciales_noDeberiaGenerarCodigoDeActivacion() {
-        when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.empty());
+        when(clienteRepository.findByEmailIgnoreCase("carlos@mail.com")).thenReturn(Optional.empty());
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "123456789", "carlos@mail.com", "clave123");
@@ -112,7 +112,7 @@ class ClienteServiceTest {
     @Test
     @DisplayName("Debe hashear la contraseña cuando el cliente se registra con email y contraseña")
     void crear_conCredenciales_deberiaHashearLaContrasena() {
-        when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.empty());
+        when(clienteRepository.findByEmailIgnoreCase("carlos@mail.com")).thenReturn(Optional.empty());
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ClienteRequest nuevo = new ClienteRequest("Carlos", "Gómez", "123456789", "123456789", "carlos@mail.com", "claveEnTextoPlano");
@@ -125,7 +125,7 @@ class ClienteServiceTest {
     @Test
     @DisplayName("Debe lanzar excepción si el email ya está en uso por otro cliente")
     void crear_conEmailDuplicado_deberiaLanzarExcepcion() {
-        when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
+        when(clienteRepository.findByEmailIgnoreCase("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
 
         ClienteRequest nuevo = new ClienteRequest("Otro", "Cliente", "987654321", "987654321", "carlos@mail.com", "otraClave");
 
@@ -220,7 +220,7 @@ class ClienteServiceTest {
     void registrarCredenciales_conCodigoValido_deberiaCompletarPerfilYAnularCodigo() {
         clientePrueba.setCodigoActivacion("ABCD1234");
         when(clienteRepository.findByCodigoActivacion("ABCD1234")).thenReturn(Optional.of(clientePrueba));
-        when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.empty());
+        when(clienteRepository.findByEmailIgnoreCase("carlos@mail.com")).thenReturn(Optional.empty());
         when(clienteRepository.save(any(Cliente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Cliente resultado = clienteService.registrarCredenciales(
@@ -265,7 +265,7 @@ class ClienteServiceTest {
     void autenticar_conCredencialesCorrectas_deberiaRetornarTrue() {
         clientePrueba.setEmail("carlos@mail.com");
         clientePrueba.setContrasena(passwordEncoder.encode("miClave123"));
-        when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
+        when(clienteRepository.findByEmailIgnoreCase("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
 
         assertTrue(clienteService.autenticar("carlos@mail.com", "miClave123"));
     }
@@ -275,7 +275,7 @@ class ClienteServiceTest {
     void autenticar_conContrasenaIncorrecta_deberiaRetornarFalse() {
         clientePrueba.setEmail("carlos@mail.com");
         clientePrueba.setContrasena(passwordEncoder.encode("miClave123"));
-        when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
+        when(clienteRepository.findByEmailIgnoreCase("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
 
         assertFalse(clienteService.autenticar("carlos@mail.com", "claveIncorrecta"));
     }
@@ -285,7 +285,7 @@ class ClienteServiceTest {
     void autenticar_sinContrasenaCargada_deberiaRetornarFalse() {
         clientePrueba.setEmail("carlos@mail.com");
         clientePrueba.setContrasena(null);
-        when(clienteRepository.findByEmail("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
+        when(clienteRepository.findByEmailIgnoreCase("carlos@mail.com")).thenReturn(Optional.of(clientePrueba));
 
         assertFalse(clienteService.autenticar("carlos@mail.com", "cualquierClave"));
     }

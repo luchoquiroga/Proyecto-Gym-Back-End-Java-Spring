@@ -85,10 +85,13 @@ class DashboardServiceTest {
     }
 
     @Test
-    @DisplayName("Un mes fuera de rango (ej. 13) debe rechazarse")
+    @DisplayName("Un mes fuera de rango (ej. 13) debe rechazarse como error de quien llama")
     void obtenerGananciasMensuales_conMesInvalido_deberiaLanzarExcepcion() {
-        assertThrows(DateTimeException.class,
+        // IllegalArgumentException y no la DateTimeException de YearMonth.of: esa no la
+        // mapea ningún handler y por HTTP terminaba en un 500 en vez de un 400.
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> dashboardService.obtenerGananciasMensuales(2026, 13));
+        assertEquals("El mes tiene que estar entre 1 y 12", ex.getMessage());
     }
 
     @Test

@@ -41,7 +41,15 @@ public class DashboardServiceImpl implements DashboardService {
         int anioEfectivo = (anio != null) ? anio : hoy.getYear();
         int mesEfectivo = (mes != null) ? mes : hoy.getMonthValue();
 
-        // YearMonth valida el rango del mes (1-12).
+        // Se validan acá y no con YearMonth.of: ese tira DateTimeException, que no es un
+        // IllegalArgumentException y terminaba en un 500. El tope de año es el mismo que
+        // admite el formato AAAA-MM de /ganancias-por-mes.
+        if (mesEfectivo < 1 || mesEfectivo > 12) {
+            throw new IllegalArgumentException("El mes tiene que estar entre 1 y 12");
+        }
+        if (anioEfectivo < 1 || anioEfectivo > 9999) {
+            throw new IllegalArgumentException("El año tiene que estar entre 1 y 9999");
+        }
         return calcularGananciasDelMes(YearMonth.of(anioEfectivo, mesEfectivo));
     }
 

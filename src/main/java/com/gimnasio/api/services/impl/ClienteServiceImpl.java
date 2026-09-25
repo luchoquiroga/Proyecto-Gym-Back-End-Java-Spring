@@ -19,8 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
-import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -55,9 +55,9 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     @Transactional
     public Cliente crear(ClienteRequest request) {
-        if (request.getEmail() != null && !request.getEmail().isBlank()
-                && clienteRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new IllegalArgumentException("Ya existe un cliente registrado con el email: " + request.getEmail());
+        String email = normalizarEmail(request.getEmail());
+        if (email != null && clienteRepository.findByEmailIgnoreCase(email).isPresent()) {
+            throw new IllegalArgumentException("Ya existe un cliente registrado con el email: " + email);
         }
 
         String documento = normalizarDocumento(request.getDocumento());
@@ -71,7 +71,7 @@ public class ClienteServiceImpl implements ClienteService {
         cliente.setApellido(request.getApellido());
         cliente.setTelefono(request.getTelefono());
         cliente.setDocumento(documento);
-        cliente.setEmail(request.getEmail());
+        cliente.setEmail(email);
 
         // Por regla de negocio, un cliente recién registrado siempre inicia INACTIVO hasta
         // que abone un pago. A diferencia de la versión vieja (que recibía la entidad
@@ -152,7 +152,10 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     @Transactional
     public Cliente registrarCredenciales(String codigoActivacion, String email, String contrasena) {
-        Cliente cliente = clienteRepository.findByCodigoActivacion(codigoActivacion)
+        // El código se genera en mayúsculas, pero el socio lo tipea como le sale.
+        String codigo = codigoActivacion.trim().toUpperCase(Locale.ROOT);
+        String emailNormalizado = normalizarEmail(email);
+        Cliente cliente = clienteRepository.findByCodigoActivacion(codigo)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Código de activación inválido o ya utilizado. Pedí uno nuevo en el gimnasio."));
 
@@ -160,11 +163,16 @@ public class ClienteServiceImpl implements ClienteService {
             throw new IllegalArgumentException("Ya existe una cuenta registrada para este cliente. Iniciá sesión.");
         }
 
-        if (clienteRepository.findByEmail(email).isPresent()) {
-            throw new IllegalArgumentException("Ya existe un cliente registrado con el email: " + email);
-        }
+        // Que el email ya sea de ESTE socio (el staff se lo cargó en el alta) no es un
+        // conflicto: antes se rechazaba, y ese socio no tenía forma de registrarse.
+        clienteRepository.findByEmailIgnoreCase(emailNormalizado).ifPresent(otro -> {
+            if (!otro.getId().equals(cliente.getId())) {
+                throw new IllegalArgumentException(
+                        "Ya existe un cliente registrado con el email: " + emailNormalizado);
+            }
+        });
 
-        cliente.setEmail(email);
+        cliente.setEmail(emailNormalizado);
         cliente.setContrasena(passwordEncoder.encode(contrasena));
         // De un solo uso: una vez canjeado no debe volver a servir para reclamar la cuenta.
         cliente.setCodigoActivacion(null);
@@ -188,6 +196,19 @@ public class ClienteServiceImpl implements ClienteService {
         return normalizado;
     }
 
+    /**
+     * Email en su forma canónica: sin espacios alrededor y en minúsculas, o null si viene
+     * vacío. El vacío importa: la columna es UNIQUE, y un "" guardado tal cual hacía que el
+     * segundo socio dado de alta sin email rebotara con un 409. En minúsculas porque el
+     * login lo compara, y "Juan@x.com" y "juan@x.com" son la misma casilla.
+     */
+    private String normalizarEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+        return email.trim().toLowerCase(Locale.ROOT);
+    }
+
     private String generarCodigoActivacionUnico() {
         String codigo;
         do {
@@ -207,16 +228,17 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     @Transactional(readOnly = true)
     public boolean autenticar(String email, String contrasena) {
-        return clienteRepository.findByEmail(email)
-                .map(cliente -> cliente.getContrasena() != null
-                        && passwordEncoder.matches(contrasena, cliente.getContrasena()))
-                .orElse(false);
+        Cliente cliente = clienteRepository.findByEmailIgnoreCase(normalizarEmail(email)).orElse(null);
+        // BCrypt corre SIEMPRE, también sin cuenta o sin contraseña cargada todavía: si se
+        // salteara, el tiempo de respuesta delataría qué emails están registrados (ver
+        // BCryptTiempoConstantePasswordEncoder, que devuelve false ante un hash nulo).
+        return passwordEncoder.matches(contrasena, cliente == null ? null : cliente.getContrasena());
     }
 
     @Override
     @Transactional(readOnly = true)
     public Cliente buscarPorEmail(String email) {
-        return clienteRepository.findByEmail(email)
+        return clienteRepository.findByEmailIgnoreCase(normalizarEmail(email))
                 .orElseThrow(() -> new RecursoNoEncontradoException("Cliente no encontrado con el email: " + email));
     }
 
@@ -256,7 +278,12 @@ public class ClienteServiceImpl implements ClienteService {
     @Override
     @Transactional(readOnly = true)
     public List<ClienteResponse> buscarPorNombreConVencimiento(String nombre) {
-        return clienteRepository.findByNombreContainingIgnoreCase(nombre).stream()
+        // Vacío, el LIKE '%%' trae a TODOS los socios sin paginar, con una consulta de pagos
+        // por cada uno. Para listar todo está GET /clientes, que pagina.
+        if (nombre == null || nombre.isBlank()) {
+            throw new IllegalArgumentException("Escribí al menos una letra del nombre para buscar.");
+        }
+        return clienteRepository.findByNombreContainingIgnoreCase(nombre.trim()).stream()
                 .map(cliente -> ClienteResponse.desde(cliente, ultimoPago(cliente.getId())))
                 .toList();
     }
