@@ -136,16 +136,20 @@ local, en `http://localhost:8080/swagger-ui/index.html`.
 ## 6. Cosas que conviene saber
 
 **El vencimiento automático depende de que el servicio esté despierto.**
-`VencimientoScheduler` corre con `@Scheduled(cron = "0 0 0 * * *")`, es decir a
-medianoche del huso horario del servidor. En el plan gratuito de Render el
+`VencimientoScheduler` corre con `@Scheduled(cron = "0 0 0 * * *", zone = ZONA_GIMNASIO)`,
+es decir a medianoche de Argentina. En el plan gratuito de Render el
 servicio **se duerme por inactividad**, y un servicio dormido no ejecuta tareas
 programadas: si nadie usa el sistema de noche, los socios no pasan a MOROSO ni a
 INACTIVO ese día. No es un bug del código, es el plan de hosting. Si importa,
 las salidas son un plan que no duerma, un ping externo que lo mantenga vivo, o
 recalcular el estado al consultarlo en vez de por tarea programada.
 
-**La zona horaria del contenedor es UTC.** El `Dockerfile` no la fija, así que
-"medianoche" para el scheduler es medianoche UTC, no de Argentina.
+**La zona horaria del contenedor es UTC, pero la app no depende de eso (desde la Fase 9).**
+El `Dockerfile` no la fija y no hace falta: el cron declara su zona
+(`America/Argentina/Buenos_Aires`, en `ZonaHorariaConfig.ZONA_GIMNASIO`) y todo "hoy" sale
+del `Clock` de `ZonaHorariaConfig`, no de la JVM. Por eso no hay que agregar `TZ` en Render.
+Lo que sí rompe esto es un `LocalDate.now()` sin argumento en código nuevo: vuelve a
+preguntarle la fecha a la JVM, y desde las 21:00 de Argentina eso ya es el día siguiente.
 
 **Cambiar `CORS_ALLOWED_ORIGINS` importa solo para el navegador.** La app de
 escritorio no es un browser y no aplica CORS; la web sí, y si el origen no está
