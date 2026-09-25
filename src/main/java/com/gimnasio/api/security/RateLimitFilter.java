@@ -19,8 +19,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Limita los intentos de login para frenar fuerza bruta: 5 intentos por minuto,
- * por IP, por endpoint de login. En memoria del proceso (sin Redis) — suficiente
+ * Limita los intentos de login (y de registro del socio) para frenar fuerza bruta: 5 intentos
+ * por minuto, por IP, por endpoint. En memoria del proceso (sin Redis) — suficiente
  * para el tamaño y el deployment actual de esta app; no sobrevive un restart ni
  * escala a múltiples instancias.
  *
@@ -41,9 +41,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
+    // El registro del socio también: es público y cada intento prueba un código de activación.
     private static final Set<String> RUTAS_LIMITADAS = Set.of(
             "/api/v1/usuarios/login",
-            "/api/v1/clientes/login"
+            "/api/v1/clientes/login",
+            "/api/v1/clientes/registro"
     );
 
     private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();

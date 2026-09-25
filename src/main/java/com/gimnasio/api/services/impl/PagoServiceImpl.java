@@ -62,6 +62,9 @@ public class PagoServiceImpl implements PagoService {
     @Transactional
     public Pago anular(Integer id, String motivo, Integer anuladoPorId) {
         Pago pago = obtenerPorId(id);
+        // Mismo bloqueo que el cobro: la regla de "no anular si hay otro encadenado" no vale
+        // si en paralelo se está registrando justamente ese otro.
+        clienteRepository.findByIdParaActualizar(pago.getCliente().getId());
 
         if (pago.isAnulado()) {
             // 400 explícito y no una anulación silenciosa: volver a anular casi siempre
@@ -119,7 +122,8 @@ public class PagoServiceImpl implements PagoService {
     public Pago registrarPago(Integer clienteId, Integer planId, Double montoAbonado, LocalDate fechaPago,
                               Integer registradoPorId) {
         // 1. Validar que el cliente exista
-        Cliente cliente = clienteRepository.findById(clienteId)
+        // Con la fila del socio bloqueada: ver ClienteRepository.findByIdParaActualizar.
+        Cliente cliente = clienteRepository.findByIdParaActualizar(clienteId)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No se puede registrar el pago: Cliente no encontrado con ID " + clienteId));
 
         // 2. Validar que el plan exista
@@ -132,7 +136,15 @@ public class PagoServiceImpl implements PagoService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("No se puede registrar el pago: Usuario no encontrado con ID " + registradoPorId));
 
         // 4. Establecer fecha de pago por defecto (hoy si no se especifica)
-        LocalDate fechaEfectiva = (fechaPago != null) ? fechaPago : LocalDate.now(clock);
+        LocalDate hoy = LocalDate.now(clock);
+        LocalDate fechaEfectiva = (fechaPago != null) ? fechaPago : hoy;
+        // La fecha de cobro es el día en que entró la plata, así que no puede ser futura. Un
+        // cobro a mañana activaba al socio y sumaba en la caja de un día que no pasó. Va acá
+        // con el Clock y no como @PastOrPresent en el DTO, porque ese usa la zona de la JVM
+        // (UTC en Render) y desde las 21:00 dejaría pasar la fecha de mañana.
+        if (fechaEfectiva.isAfter(hoy)) {
+            throw new IllegalArgumentException("La fecha de cobro no puede ser posterior a hoy.");
+        }
 
         // 5. Establecer monto: si no se especifica, se cobra el precio oficial del plan.
         Double montoFinal = (montoAbonado != null) ? montoAbonado : plan.getPrecio();
@@ -172,7 +184,7 @@ public class PagoServiceImpl implements PagoService {
         // deja al día. Un pago retroactivo cuyo período ya venció no reactiva a nadie:
         // el scheduler de vencimientos solo escala estados (nunca los revierte), así que
         // activar acá a ciegas dejaba al cliente ACTIVO indebidamente.
-        if (fechaVencimiento.isAfter(LocalDate.now(clock))) {
+        if (fechaVencimiento.isAfter(hoy)) {
             cliente.setEstado(EstadoCliente.ACTIVO);
             clienteRepository.save(cliente);
         }

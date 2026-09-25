@@ -128,13 +128,16 @@ public class SecurityConfig {
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
+                            // Si vino un Bearer y no servía, se dice eso: la web distingue "se
+                            // venció la sesión" de "nunca inició sesión" (ver JwtAuthenticationFilter).
+                            String mensaje = request.getAttribute(JwtAuthenticationFilter.ATRIBUTO_TOKEN_INVALIDO) != null
+                                    ? "Token inválido o expirado"
+                                    : "Es necesario iniciar sesión para acceder a este recurso";
                             response.setStatus(HttpStatus.UNAUTHORIZED.value());
                             // Sin charset explícito el contenedor escribe en ISO-8859-1 y los acentos se rompen.
                             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            response.getWriter().write(
-                                    "{\"status\":401,\"mensaje\":\"Es necesario iniciar sesión para acceder a este recurso\"}"
-                            );
+                            response.getWriter().write("{\"status\":401,\"mensaje\":\"" + mensaje + "\"}");
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             response.setStatus(HttpStatus.FORBIDDEN.value());

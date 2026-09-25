@@ -97,7 +97,7 @@ class ClienteControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errores.contrasena").value("La contraseña debe tener al menos 8 caracteres"));
+                .andExpect(jsonPath("$.errores.contrasena").value("La contraseña debe tener entre 8 y 72 caracteres"));
     }
 
     @Test

@@ -29,11 +29,14 @@ import lombok.NoArgsConstructor;
 public class ClienteRequest {
 
     @NotBlank(message = "El nombre es obligatorio")
+    @Size(max = 100, message = "El nombre no puede superar los 100 caracteres")
     private String nombre;
 
     @NotBlank(message = "El apellido es obligatorio")
+    @Size(max = 100, message = "El apellido no puede superar los 100 caracteres")
     private String apellido;
 
+    @Size(max = 50, message = "El teléfono no puede superar los 50 caracteres")
     private String telefono;
 
     /**
@@ -53,6 +56,7 @@ public class ClienteRequest {
     private String documento;
 
     @Email(message = "El email no tiene un formato válido")
+    @Size(max = 150, message = "El email no puede superar los 150 caracteres")
     private String email;
 
     /**
@@ -60,6 +64,8 @@ public class ClienteRequest {
      * flujo normal de mostrador), y el cliente las completa después por su cuenta en
      * /registro usando el código de activación que se le entregó en persona.
      */
-    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
+    // 72 porque BCrypt solo usa los primeros 72 bytes: más largo, el encoder la rechaza con
+    // un error en inglés, y antes ni eso (dos claves con el mismo comienzo eran iguales).
+    @Size(min = 8, max = 72, message = "La contraseña debe tener entre 8 y 72 caracteres")
     private String contrasena;
 }

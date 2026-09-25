@@ -7,8 +7,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -16,7 +14,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.util.List;
 
@@ -27,6 +24,13 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    /**
+     * Marca que deja el filtro en la request cuando el Bearer no sirve. El entry point de
+     * SecurityConfig la lee para seguir respondiendo "Token inválido o expirado" en vez del
+     * mensaje genérico de "iniciá sesión".
+     */
+    public static final String ATRIBUTO_TOKEN_INVALIDO = JwtAuthenticationFilter.class.getName() + ".tokenInvalido";
 
     private final JwtService jwtService;
 
@@ -41,12 +45,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Un token que no sirve NO corta la request acá: sigue como anónima y es la regla de
+        // SecurityConfig la que decide. Antes se respondía 401 en el acto, y eso rompía los
+        // endpoints públicos que reciben un token viejo: la web manda el access token vencido
+        // en el logout, el logout nunca llegaba al controller, y la cookie de refresh quedaba
+        // viva 30 días en una PC compartida como la del mostrador.
         String token = header.substring("Bearer ".length());
         try {
             Claims claims = jwtService.validarYObtenerClaims(token);
+            // Un refresh token bien firmado no sirve como access token: se trata como inválido.
             if (jwtService.esRefreshToken(token)) {
-                responderNoAutorizado(response, "Token inválido o expirado");
-                return;
+                throw new JwtException("Se usó un refresh token como access token");
             }
 
             String nombreUsuario = claims.getSubject();
@@ -61,20 +70,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             var authoridades = List.of(new SimpleGrantedAuthority("ROLE_" + rol));
             var autenticacion = new UsernamePasswordAuthenticationToken(principal, null, authoridades);
             SecurityContextHolder.getContext().setAuthentication(autenticacion);
-
-            filterChain.doFilter(request, response);
         } catch (JwtException e) {
-            responderNoAutorizado(response, "Token inválido o expirado");
+            request.setAttribute(ATRIBUTO_TOKEN_INVALIDO, true);
         }
-    }
-
-    private void responderNoAutorizado(HttpServletResponse response, String mensaje) throws IOException {
-        response.setStatus(HttpStatus.UNAUTHORIZED.value());
-        // Sin charset explícito el contenedor escribe en ISO-8859-1 y los acentos se rompen.
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write(
-                "{\"status\":401,\"mensaje\":\"" + mensaje + "\"}"
-        );
+        // Fuera del try a propósito: una JwtException que saliera de más adentro de la cadena
+        // no tiene que confundirse con un token inválido.
+        filterChain.doFilter(request, response);
     }
 }
