@@ -13,6 +13,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
  * Implementación de la lógica de negocio para la gestión y autenticación de Usuarios.
  */
@@ -117,13 +119,19 @@ public class UsuarioServiceImpl implements UsuarioService {
             throw new IllegalArgumentException("No podés dar de baja tu propio usuario.");
         }
 
+        // Una baja bloquea primero a los ADMIN activos y recién después lee la cuenta: si A da
+        // de baja a B mientras B da de baja a A, la segunda espera a que termine la primera y
+        // cuenta lo que quedó, en vez de que las dos vean dos ADMIN y dejen al sistema sin
+        // ninguno. Reactivar no puede dejar a nadie sin ADMIN, así que no bloquea.
+        List<Usuario> adminsActivos = activo ? List.of()
+                : usuarioRepository.findActivosPorRolParaActualizar(RolUsuario.ADMIN);
         Usuario usuario = buscarPorId(id);
 
         // Se cuentan los ADMIN activos, no todos: un ADMIN dado de baja no puede loguearse,
         // así que no sirve para administrar el sistema. Contar todos dejaría dar de baja al
         // último que queda en pie mientras hubiera otro inactivo en la tabla.
         if (!activo && usuario.isActivo() && usuario.getRol() == RolUsuario.ADMIN
-                && usuarioRepository.countByRolAndActivoTrue(RolUsuario.ADMIN) <= 1) {
+                && adminsActivos.size() <= 1) {
             throw new IllegalArgumentException("No se puede dar de baja al último administrador del sistema.");
         }
 

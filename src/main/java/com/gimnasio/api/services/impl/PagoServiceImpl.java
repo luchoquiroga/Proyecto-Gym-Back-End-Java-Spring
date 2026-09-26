@@ -61,10 +61,15 @@ public class PagoServiceImpl implements PagoService {
     @Override
     @Transactional
     public Pago anular(Integer id, String motivo, Integer anuladoPorId) {
-        Pago pago = obtenerPorId(id);
         // Mismo bloqueo que el cobro: la regla de "no anular si hay otro encadenado" no vale
-        // si en paralelo se está registrando justamente ese otro.
-        clienteRepository.findByIdParaActualizar(pago.getCliente().getId());
+        // si en paralelo se está registrando justamente ese otro. Y se toma ANTES de leer el
+        // pago: leído antes, quedaba en memoria la copia previa a otra anulación en curso, y
+        // la segunda de dos anulaciones simultáneas pasaba el chequeo de "ya estaba anulado"
+        // y pisaba el motivo y el autor de la primera.
+        Integer clienteId = pagoRepository.findClienteIdDelPago(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Pago no encontrado con ID: " + id));
+        clienteRepository.findByIdParaActualizar(clienteId);
+        Pago pago = obtenerPorId(id);
 
         if (pago.isAnulado()) {
             // 400 explícito y no una anulación silenciosa: volver a anular casi siempre

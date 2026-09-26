@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -181,7 +182,7 @@ class UsuarioServiceTest {
     @DisplayName("Dar de baja debe rechazar al último ADMIN activo del sistema")
     void darDeBaja_conUltimoAdminActivo_deberiaLanzarExcepcion() {
         when(usuarioRepository.findById(1)).thenReturn(Optional.of(usuarioAdmin));
-        when(usuarioRepository.countByRolAndActivoTrue(RolUsuario.ADMIN)).thenReturn(1L);
+        when(usuarioRepository.findActivosPorRolParaActualizar(RolUsuario.ADMIN)).thenReturn(List.of(usuarioAdmin));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
                 usuarioService.cambiarActivo(1, false, 2));
@@ -195,7 +196,9 @@ class UsuarioServiceTest {
     @DisplayName("Dar de baja a un ADMIN que no es el último ni quien lo pide debe desactivarlo y cerrar sus sesiones")
     void darDeBaja_casoNormal_deberiaDesactivar() {
         when(usuarioRepository.findById(1)).thenReturn(Optional.of(usuarioAdmin));
-        when(usuarioRepository.countByRolAndActivoTrue(RolUsuario.ADMIN)).thenReturn(2L);
+        Usuario otroAdmin = new Usuario(3, "otroAdmin", "sin-uso", RolUsuario.ADMIN);
+        when(usuarioRepository.findActivosPorRolParaActualizar(RolUsuario.ADMIN))
+                .thenReturn(List.of(usuarioAdmin, otroAdmin));
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         usuarioService.cambiarActivo(1, false, 2);
