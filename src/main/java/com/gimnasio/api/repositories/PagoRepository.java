@@ -17,6 +17,11 @@ public interface PagoRepository extends JpaRepository<Pago, Integer> {
 
     List<Pago> findByClienteId(Integer clienteId);
 
+    // El socio de un pago, sin cargar el pago. La anulación bloquea al socio antes de leer el
+    // pago: si lo leyera primero, se quedaría con la copia de antes del bloqueo.
+    @Query("SELECT p.cliente.id FROM Pago p WHERE p.id = :id")
+    Optional<Integer> findClienteIdDelPago(@Param("id") Integer id);
+
     // Último pago de UN solo cliente (mayor fecha de vencimiento). Pensado para los casos
     // donde solo hace falta la fecha de vencimiento vigente de un socio puntual (GET /clientes/{id}
     // y /clientes/buscar): una sola fila, sin necesidad de traer ni mapear el resto de la tabla.

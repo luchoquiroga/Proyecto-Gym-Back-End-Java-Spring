@@ -222,6 +222,7 @@ class PagoServiceTest {
     void anular_conPagoCobradoDuranteSuPeriodo_deberiaRechazar() {
         Pago pago = new Pago(10, clienteInactivo, planMensual, 32500.0, HOY.minusDays(10), HOY.plusDays(20), null);
         Pago posterior = new Pago(11, clienteInactivo, planMensual, 32500.0, HOY, HOY.plusDays(50), null);
+        when(pagoRepository.findClienteIdDelPago(10)).thenReturn(Optional.of(1));
         when(pagoRepository.findById(10)).thenReturn(Optional.of(pago));
         when(pagoRepository.findCobradosDuranteElPeriodo(1, 10, HOY.minusDays(10), HOY.plusDays(20)))
                 .thenReturn(List.of(posterior));
