@@ -176,42 +176,71 @@ Ninguno se hace por ahora, a propósito:
 
 ---
 
-## 7. Pendiente: la web publicada en Vercel (ticket B8 del front)
+## 7. La web publicada en Vercel (ticket B8 del front)
 
-La web se va a publicar en Vercel pidiéndole el API a su propio dominio, y
-`vercel.json` reenvía `/api/*` a Render (así la cookie de refresh es del
-dominio de la web y Safari no la bloquea). **Está en pausa hasta que el dueño
-decida el hosting.** Lo que ya está hecho y lo que falta:
+Publicada el 2026-09-26 en `https://gimnasioathletics.vercel.app` (plan Hobby,
+producción desde `master` del front). La web le pide el API a su propio dominio
+y `vercel.json` reenvía `/api/*` a Render, así la cookie de refresh es del
+dominio de la web y Safari no la bloquea. Vercel solo sirve la web: todos los
+datos siguen yendo a Render y a Neon. **Es un MVP**: el plan Hobby de Vercel es
+para uso no comercial.
 
 **Hecho (2026-09-24): el límite de intentos de login por IP.** Antes usaba
-`getRemoteAddr()`, que detrás del balanceador de Render es la IP del
-balanceador: todos los usuarios compartían un solo cupo de 5 intentos por
-minuto, y un socio que se equivocaba cinco veces le bloqueaba el login al
-mostrador. Ahora `RateLimitFilter` toma la IP de `X-Forwarded-For`, contando
-`RATE_LIMIT_TRUSTED_PROXIES` entradas desde la derecha (las de la izquierda las
-puede escribir cualquiera). Limitación aceptada: con `2`, quien llame directo a
-`*.onrender.com` salteando Vercel elige la IP que se toma y puede cambiar de
-cupo en cada intento.
+`getRemoteAddr()` a secas, y se asumía que detrás de Render eso era la IP del
+balanceador, compartida por todos. Ahora `RateLimitFilter` toma la IP de
+`X-Forwarded-For`, contando `RATE_LIMIT_TRUSTED_PROXIES` entradas desde la
+derecha (las de la izquierda las puede escribir cualquiera), y si no hay header
+usa `getRemoteAddr()`.
 
-**Falta al publicar la web:**
+**Medido en producción el 2026-09-26**, con logins fallidos contra un email que
+no existe:
 
-1. **Confirmar el valor de `RATE_LIMIT_TRUSTED_PROXIES` contra el header real.**
-   El `1` asume que Render agrega una sola entrada al final. No se verificó
-   contra producción: si Render (o Cloudflare delante de Render) agrega más de
-   una, el valor correcto es otro. La prueba: seis logins fallidos desde el
-   celular con datos móviles no tienen que bloquear el login desde la PC en
-   otra red. Con Vercel delante, pasar a `2` y repetir la prueba.
-2. **`CORS_ALLOWED_ORIGINS`:** agregar el origen de la web publicada
-   (`https://<proyecto>.vercel.app`, y el dominio propio si se usa) **sin sacar**
-   `http://localhost:5173`, separados por coma. Aunque con el proxy el navegador
-   no hace un pedido cruzado, Vercel reenvía el header `Origin` y Spring rechaza
-   un origen desconocido con **403 "Invalid CORS request"**. Si el login desde la
-   web publicada da ese 403, es esto.
-3. **`REFRESH_COOKIE_SAMESITE=Lax`.** `None` era para web y API en dominios
-   distintos; detrás del proxy son el mismo sitio, y `Lax` suma protección
-   contra CSRF. `REFRESH_COOKIE_SECURE` sigue en `true`.
-4. **Cold start (decisión del dueño).** En el plan gratis, la primera petición
-   después de dormir tardó más de 90 segundos (medido el 2026-09-24) y detrás de
-   Vercel puede cortarse antes. Opciones: un cron externo que pegue a `/ping`
-   cada ~10 minutos, o el plan pago. Anotar acá la que se elija. Resuelve también
-   el problema del scheduler dormido de §6.
+| Prueba | Resultado | Qué quiere decir |
+|---|---|---|
+| Directo a Render, `X-Forwarded-For` falso distinto en cada intento | 429 al sexto | La clave es la IP real; el header del cliente no la cambia |
+| Por Vercel, `X-Forwarded-For` falso | Nunca 429, aunque sea fijo | Vercel pisa el header: tampoco se puede elegir cupo |
+| Por Vercel, sin header | Casi nunca 429 | La clave es la IP de salida de Vercel, que rota entre unas pocas |
+| Por Vercel, `Origin` de la web | 401 (pasa el CORS) | Spring ve el pedido como del mismo origen (ver punto 2) |
+| Directo a Render, `Origin` de la web | 403 "Invalid CORS request" | La web todavía no estaba en `CORS_ALLOWED_ORIGINS` |
+
+Que el CORS vea el mismo origen detrás de Vercel dice que en Render se procesan
+los `X-Forwarded-*` aunque la app no lo configure: Spring Boot detecta la
+plataforma y activa solo `server.forward-headers-strategy`. Todo indica que eso
+también explica el rate limit: Tomcat ya consume la entrada de `X-Forwarded-For`
+que corresponde al cliente directo de Render, y detrás de Vercel ese cliente es
+Vercel. La IP del usuario no llega a la posición que lee el filtro.
+
+**Pendiente, para cuando se suba en serio** (decisión del dueño el 2026-09-26: no
+bloquea el MVP):
+
+1. **El rate limit detrás de Vercel agrupa por IP de Vercel, no por usuario.** Los
+   usuarios de la web comparten unos pocos cupos de 5 intentos por minuto: un
+   socio que se equivoca cinco veces puede bloquear un minuto el login de otro.
+   `RATE_LIMIT_TRUSTED_PROXIES` **queda en `1`**: pasarlo a `2` (lo que decía
+   este punto antes de medir) no se probó, pero por lo de arriba lo esperable es
+   que no cambie nada. Si se quiere confirmar, se cambia y se repite la prueba
+   "por Vercel, sin header". El arreglo:
+   - un log temporal en `RateLimitFilter` para ver qué headers le llegan de
+     verdad por Vercel (`X-Real-IP`, `X-Vercel-Forwarded-For`, `Forwarded`...);
+   - leer la IP del usuario del que corresponda;
+   - fijar `server.forward-headers-strategy` a mano, para no depender de la
+     detección automática.
+
+   Limitación que sigue aceptada: un header que Render deja pasar tal cual
+   también lo puede escribir quien llame directo a `*.onrender.com`, salteando
+   Vercel.
+2. **`CORS_ALLOWED_ORIGINS=http://localhost:5173,https://gimnasioathletics.vercel.app`**
+   (al 2026-09-26 todavía sin cargar). Hoy el login desde la web anda sin esto,
+   por lo de arriba, pero depende de esa detección automática: si Spring deja de
+   procesar `X-Forwarded-Host`, el login da **403 "Invalid CORS request"**. Si
+   aparece ese 403, es esto. `localhost:5173` queda para `pnpm dev:prod` (la web
+   local contra producción).
+3. **`REFRESH_COOKIE_SAMESITE=Lax`** (al 2026-09-26 todavía sin cargar). `None`
+   era para web y API en dominios distintos; detrás del proxy son el mismo sitio,
+   y `Lax` suma protección contra CSRF. `REFRESH_COOKIE_SECURE` sigue en `true`.
+4. **Cold start: decidido el 2026-09-25**, un cron externo que le pegue a `/ping`
+   cada ~10 minutos, directo a `*.onrender.com` y no a la web. Lo arma el dueño.
+   En el plan gratis la primera petición después de dormir tardó más de 90
+   segundos (medido el 2026-09-24), y detrás de Vercel puede cortarse antes. Con
+   el servicio despierto también corre el job de medianoche (§6), y como `/ping`
+   no toca la base, Neon igual se duerme.
