@@ -144,6 +144,15 @@ INACTIVO ese día. No es un bug del código, es el plan de hosting. Si importa,
 las salidas son un plan que no duerma, un ping externo que lo mantenga vivo, o
 recalcular el estado al consultarlo en vez de por tarea programada.
 
+**Render despierto no mantiene despierta a Neon.** El pool de conexiones está configurado
+(`spring.datasource.hikari.*` en `application.properties`) para cerrar todas sus
+conexiones un minuto después del último uso y no mandar keepalives; con eso Neon ve
+5 minutos sin actividad y suspende el cómputo aunque el servicio de Render siga prendido.
+Para que esto se sostenga, lo que mantenga vivo a Render tiene que pegarle a `/ping`, que
+no toca la base: un monitor apuntado a un endpoint con consultas (o un health check que
+chequee la base) vuelve a despertar a Neon en cada pasada. El job de medianoche la
+despierta una vez por día, y eso está bien.
+
 **La zona horaria del contenedor es UTC, pero la app no depende de eso (desde la Fase 9).**
 El `Dockerfile` no la fija y no hace falta: el cron declara su zona
 (`America/Argentina/Buenos_Aires`, en `ZonaHorariaConfig.ZONA_GIMNASIO`) y todo "hoy" sale
