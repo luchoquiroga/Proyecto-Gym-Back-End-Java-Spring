@@ -25,6 +25,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -655,5 +656,66 @@ class ClienteControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.contenido[0].apellido").value("Zzzzordenb"))
                 .andExpect(jsonPath("$.contenido[1].apellido").value("Zzzzordena"));
+    }
+
+    @Test
+    @DisplayName("GET /clientes?estado=MOROSO debe traer solo socios morosos")
+    void listarClientes_filtradoPorEstado_deberiaTraerSoloEseEstado() throws Exception {
+        Cliente moroso = clienteRepository.save(
+                new Cliente(null, "Filtro", "Moroso", "555-F1", "555-F1", null, null, EstadoCliente.MOROSO, null));
+        clienteRepository.save(
+                new Cliente(null, "Filtro", "Activo", "555-F2", "555-F2", null, null, EstadoCliente.ACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        MvcResult resultado = mockMvc.perform(get("/api/v1/clientes")
+                        .param("estado", "MOROSO").param("size", "1000")
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode contenido = objectMapper.readTree(resultado.getResponse().getContentAsString()).get("contenido");
+        boolean apareceElMoroso = false;
+        for (JsonNode socio : contenido) {
+            assertEquals("MOROSO", socio.get("estado").asText());
+            apareceElMoroso |= socio.get("id").asInt() == moroso.getId();
+        }
+        assertTrue(apareceElMoroso);
+    }
+
+    @Test
+    @DisplayName("GET /clientes?estado= con un estado que no existe debe devolver 400")
+    void listarClientes_conEstadoInexistente_deberiaDevolver400() throws Exception {
+        mockMvc.perform(get("/api/v1/clientes").param("estado", "VENCIDO")
+                        .header("Authorization", "Bearer " + loguearComoAdmin()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensaje").value("El parámetro 'estado' tiene un valor inválido"));
+    }
+
+    @Test
+    @DisplayName("GET /clientes?sort=ordenEstado,asc debe ordenar ACTIVO, MOROSO, INACTIVO (no alfabético)")
+    void listarClientes_ordenadoPorOrdenEstado_deberiaSeguirElOrdenDelMostrador() throws Exception {
+        clienteRepository.save(
+                new Cliente(null, "Orden", "Inactivo", "555-O1", "555-O1", null, null, EstadoCliente.INACTIVO, null));
+        clienteRepository.save(
+                new Cliente(null, "Orden", "Moroso", "555-O2", "555-O2", null, null, EstadoCliente.MOROSO, null));
+        clienteRepository.save(
+                new Cliente(null, "Orden", "Activo", "555-O3", "555-O3", null, null, EstadoCliente.ACTIVO, null));
+        String tokenAdmin = loguearComoAdmin();
+
+        MvcResult resultado = mockMvc.perform(get("/api/v1/clientes")
+                        .param("sort", "ordenEstado,asc").param("size", "1000")
+                        .header("Authorization", "Bearer " + tokenAdmin))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        // Alfabético quedaría INACTIVO antes que MOROSO: cada fila tiene que estar en un
+        // estado igual o "más abajo" que la anterior en el orden ACTIVO, MOROSO, INACTIVO.
+        JsonNode contenido = objectMapper.readTree(resultado.getResponse().getContentAsString()).get("contenido");
+        int posicionAnterior = -1;
+        for (JsonNode socio : contenido) {
+            int posicion = List.of("ACTIVO", "MOROSO", "INACTIVO").indexOf(socio.get("estado").asText());
+            assertTrue(posicion >= posicionAnterior, "Orden roto en el socio " + socio.get("id"));
+            posicionAnterior = posicion;
+        }
     }
 }

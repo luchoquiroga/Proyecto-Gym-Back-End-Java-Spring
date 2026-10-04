@@ -72,10 +72,11 @@ public interface ClienteService {
      * de socios sin necesitar leer la tabla de pagos (a la que ya no tiene acceso).
      * Resuelve las fechas de vencimiento en una sola consulta (no una por socio) para
      * evitar un N+1, sin importar el tamaño de la página pedida.
+     * @param estado si no es null, solo los socios en ese estado; null trae a todos.
      * @param pageable número/tamaño de página pedidos por el llamador.
      * @return la página de clientes como {@link ClienteResponse}.
      */
-    PaginaResponse<ClienteResponse> obtenerTodosConVencimiento(Pageable pageable);
+    PaginaResponse<ClienteResponse> obtenerTodosConVencimiento(EstadoCliente estado, Pageable pageable);
 
     /**
      * Busca un cliente por ID y arma su respuesta pública, incluyendo la fecha de

@@ -57,8 +57,9 @@ public class ClienteController {
 
     @GetMapping
     public ResponseEntity<PaginaResponse<ClienteResponse>> obtenerTodos(
+            @RequestParam(required = false) EstadoCliente estado,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(clienteService.obtenerTodosConVencimiento(pageable));
+        return ResponseEntity.ok(clienteService.obtenerTodosConVencimiento(estado, pageable));
     }
 
     @GetMapping("/{id}")
