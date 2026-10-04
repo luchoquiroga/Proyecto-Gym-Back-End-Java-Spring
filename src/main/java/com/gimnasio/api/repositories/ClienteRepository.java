@@ -3,6 +3,8 @@ package com.gimnasio.api.repositories;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -24,6 +26,8 @@ public interface ClienteRepository extends JpaRepository<Cliente, Integer> {
     Optional<Cliente> findByCodigoActivacion(String codigoActivacion);
     boolean existsByCodigoActivacion(String codigoActivacion);
     long countByEstado(EstadoCliente estado);
+    // El padrón filtrado por estado, para las tarjetas del dashboard ("Socios morosos").
+    Page<Cliente> findByEstado(EstadoCliente estado, Pageable pageable);
 
     // Lee al socio bloqueando su fila (SELECT ... FOR UPDATE) hasta que termine la
     // transacción. Lo usan el cobro y la anulación: los dos leen el vencimiento vigente y

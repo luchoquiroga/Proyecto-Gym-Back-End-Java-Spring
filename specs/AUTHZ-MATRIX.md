@@ -33,7 +33,7 @@ Roles/principales que existen hoy:
 | POST | `/login` | Público | |
 | POST | `/refresh` | Público (cookie `clienteRefreshToken`) | |
 | POST | `/logout` | Público | |
-| GET | `` (listado) | ADMIN, GERENCIA | |
+| GET | `` (listado) | ADMIN, GERENCIA | `?estado=` opcional filtra (2026-10-04); no cambia quién puede |
 | GET | `/buscar` | ADMIN, GERENCIA | |
 | GET | `/{id}` | ADMIN, GERENCIA, o el propio CLIENTE (`principal.id() == id`) | chequeo en `ClienteController.obtenerPorId`, no en `SecurityConfig` |
 | POST | `` (alta) | ADMIN, GERENCIA | agregado 2026-09-14, antes cualquier autenticado |

@@ -244,8 +244,10 @@ public class ClienteServiceImpl implements ClienteService {
 
     @Override
     @Transactional(readOnly = true)
-    public PaginaResponse<ClienteResponse> obtenerTodosConVencimiento(Pageable pageable) {
-        Page<Cliente> paginaClientes = clienteRepository.findAll(pageable);
+    public PaginaResponse<ClienteResponse> obtenerTodosConVencimiento(EstadoCliente estado, Pageable pageable) {
+        Page<Cliente> paginaClientes = estado == null
+                ? clienteRepository.findAll(pageable)
+                : clienteRepository.findByEstado(estado, pageable);
 
         // Una sola consulta trae el último pago de CADA cliente (no solo los de esta
         // página: PagoRepository no tiene un método acotado a un subconjunto de ids), y de

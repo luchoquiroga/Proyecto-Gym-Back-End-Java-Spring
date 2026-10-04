@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
+import org.hibernate.annotations.Formula;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -12,7 +12,6 @@ import lombok.NoArgsConstructor;
 @Table(name = "clientes")
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class Cliente {
 
     @Id
@@ -73,4 +72,33 @@ public class Cliente {
     @JsonIgnore
     @Column(name = "codigo_activacion", unique = true, length = 10)
     private String codigoActivacion;
+    /**
+     * Posición del estado en el orden en que lo lee el mostrador: ACTIVO, MOROSO, INACTIVO.
+     * Existe solo para poder pedir GET /clientes?sort=ordenEstado,asc: el estado se guarda
+     * como texto, y ordenar por `estado` lo deja alfabético (ACTIVO, INACTIVO, MOROSO).
+     *
+     * @Formula hace que lo calcule la base en cada SELECT: no es una columna, no se escribe
+     * nunca y el esquema no cambia. Repite el orden de severidad de EstadoCliente; si se
+     * agrega un estado, va acá también (sin él cae al final, con INACTIVO).
+     */
+    @JsonIgnore
+    @Formula("CASE estado WHEN 'ACTIVO' THEN 0 WHEN 'MOROSO' THEN 1 ELSE 2 END")
+    private Integer ordenEstado;
+
+    /**
+     * Constructor con los campos que se guardan. Reemplaza a @AllArgsConstructor porque ese
+     * incluiría también ordenEstado, que lo calcula la base y nadie debería pasar a mano.
+     */
+    public Cliente(Integer id, String nombre, String apellido, String telefono, String documento,
+                   String email, String contrasena, EstadoCliente estado, String codigoActivacion) {
+        this.id = id;
+        this.nombre = nombre;
+        this.apellido = apellido;
+        this.telefono = telefono;
+        this.documento = documento;
+        this.email = email;
+        this.contrasena = contrasena;
+        this.estado = estado;
+        this.codigoActivacion = codigoActivacion;
+    }
 }

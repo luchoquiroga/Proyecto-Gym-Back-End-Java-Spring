@@ -351,7 +351,7 @@ class ClienteServiceTest {
         when(pagoRepository.findUltimoPagoPorCadaCliente())
                 .thenReturn(List.of(pagoClientePrueba, pagoOtroCliente));
 
-        List<ClienteResponse> resultado = clienteService.obtenerTodosConVencimiento(pageable).contenido();
+        List<ClienteResponse> resultado = clienteService.obtenerTodosConVencimiento(null, pageable).contenido();
 
         ClienteResponse respuestaClientePrueba = resultado.stream()
                 .filter(r -> r.getId().equals(1)).findFirst().orElseThrow();
@@ -385,7 +385,7 @@ class ClienteServiceTest {
 
         when(pagoRepository.findUltimoPagoPorCadaCliente()).thenReturn(List.of(primerPago, segundoPago));
 
-        PaginaResponse<ClienteResponse> resultado = clienteService.obtenerTodosConVencimiento(pageable);
+        PaginaResponse<ClienteResponse> resultado = clienteService.obtenerTodosConVencimiento(null, pageable);
 
         assertEquals(1, resultado.contenido().size());
         assertEquals(mismaFecha, resultado.contenido().getFirst().getFechaVencimiento());
@@ -399,7 +399,7 @@ class ClienteServiceTest {
                 .thenReturn(new PageImpl<>(List.of(clientePrueba), pageable, 1));
         when(pagoRepository.findUltimoPagoPorCadaCliente()).thenReturn(List.of());
 
-        PaginaResponse<ClienteResponse> resultado = clienteService.obtenerTodosConVencimiento(pageable);
+        PaginaResponse<ClienteResponse> resultado = clienteService.obtenerTodosConVencimiento(null, pageable);
 
         assertEquals(0, resultado.pagina());
         assertEquals(20, resultado.tamanio());
