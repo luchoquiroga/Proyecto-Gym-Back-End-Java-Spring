@@ -33,7 +33,7 @@ releer explícitamente toda la matriz.
   front tiene su propio `specs/` con el mismo hábito que este, incluido un
   `CONTRATO-API.md` que resume lo que necesita saber de este backend. Si el
   contrato cambia acá, hay que corregirlo allá.
-- **`DESPLIEGUE.md`** — qué configurar en Render y Neon antes del primer
+- **`DESPLIEGUE.md`** — qué configurar en Render y Supabase antes del primer
   arranque, y los modos de falla que no dan un error obvio.
 - **`TEMPLATE.md`** — la plantilla a copiar para especificar un feature nuevo
   antes de implementarlo.
