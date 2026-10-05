@@ -2,39 +2,67 @@
 
 Fecha: 2026-09-15
 
-Guía para levantar este backend desde cero en Render + Neon. Escrita para el caso
+Guía para levantar este backend desde cero en Render + Supabase. Escrita para el caso
 de **recrear producción completa** (base vacía, servicio nuevo), que es el
 escenario donde más cosas pueden salir mal en silencio.
 
+La base estuvo en Neon hasta el 2026-10-05. Se pasó a Supabase porque el plan
+gratis de Neon cuenta horas de cómputo y el de Supabase no: la base queda prendida
+siempre, con el mismo almacenamiento (500 MB).
+
 ---
 
-## 1. Neon (base de datos)
+## 1. Supabase (base de datos)
 
-Creá la base y guardá la cadena de conexión. Dos cosas que importan:
+Creá el proyecto **en la misma región que el servicio de Render** (si no, cada
+consulta paga el viaje entre regiones) y guardá la contraseña de la base. Cuatro
+cosas que importan:
 
 **La base tiene que estar COMPLETAMENTE vacía.** No es un capricho: este proyecto
 tiene `spring.flyway.baseline-on-migrate=true` con `baseline-version=1`. Si el
 esquema tiene aunque sea una tabla y no existe todavía `flyway_schema_history`,
 Flyway asume que esa base ya está "en la versión 1" y **se saltea la migración
 `V1__baseline.sql`**, que es justamente la que crea todas las tablas. Después
-`ddl-auto=validate` no encuentra nada y la app no arranca. Si Neon te crea algo
-por defecto en el esquema `public`, borralo antes del primer deploy.
+`ddl-auto=validate` no encuentra nada y la app no arranca. Un proyecto nuevo de
+Supabase trae el esquema `public` vacío; las tablas propias de Supabase viven en
+otros esquemas (`auth`, `storage`, ...) y Flyway no las mira.
 
-**La URL de Neon no es una URL JDBC.** Neon te da algo como:
+**Apagá la Data API (Project Settings → API).** Supabase publica por REST todas
+las tablas de `public`, y Flyway crea las nuestras ahí: sin RLS, cualquiera con la
+clave `anon` (que no es secreta, está pensada para ir en un front) leería
+`usuarios`, `clientes` y `pagos` sin pasar por este backend. Nosotros no usamos esa
+API, así que se apaga entera.
+
+**Hay que usar el pooler, no la conexión directa.** La conexión directa
+(`db.<ref>.supabase.co`) es solo IPv6 y Render sale por IPv4: no conecta. En
+"Connect" elegí **Session pooler** (puerto 5432). No uses el Transaction pooler
+(puerto 6543): no soporta los prepared statements que usan Hibernate y Flyway.
+
+**La URL de Supabase no es una URL JDBC.** Supabase te da algo como:
 
 ```
-postgresql://usuario:clave@ep-xxx.neon.tech/neondb?sslmode=require
+postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-0-<región>.pooler.supabase.com:5432/postgres
 ```
 
-y Spring necesita el prefijo `jdbc:` y la contraseña por separado:
+y Spring necesita el prefijo `jdbc:`, el usuario y la contraseña por separado:
 
 ```
-DB_URL=jdbc:postgresql://ep-xxx.neon.tech/neondb?sslmode=require
-DB_USER=usuario
-DB_PASSWORD=clave
+DB_URL=jdbc:postgresql://aws-0-<región>.pooler.supabase.com:5432/postgres?sslmode=require
+DB_USER=postgres.<ref>
+DB_PASSWORD=<la contraseña del proyecto>
 ```
 
-El `?sslmode=require` no es opcional con Neon: sin él, la conexión falla.
+Ojo con el usuario: a través del pooler es `postgres.<ref>`, no `postgres` a secas.
+
+**No conectes este repo con la integración de GitHub de Supabase.** Esa integración
+aplica las migraciones de una carpeta `supabase/migrations/` en cada push, y el
+esquema de este proyecto ya lo maneja Flyway (`src/main/resources/db/`). Dos
+sistemas migrando la misma base se pisan: el caso típico es la trampa del baseline
+de arriba. Las credenciales tampoco van al repo: viven solo en Render.
+
+**Límites del plan gratis.** El proyecto se pausa después de 7 días sin actividad
+(el uso diario y el job de medianoche lo evitan) y no hay backups automáticos: si
+los datos empiezan a importar, sacá un `pg_dump` cada tanto.
 
 ---
 
@@ -42,9 +70,9 @@ El `?sslmode=require` no es opcional con Neon: sin él, la conexión falla.
 
 | Variable | ¿Obligatoria? | Qué poner |
 |---|---|---|
-| `DB_URL` | **Sí** | La URL JDBC de Neon, como arriba |
-| `DB_USER` | **Sí** | Usuario de Neon |
-| `DB_PASSWORD` | **Sí** | Contraseña de Neon |
+| `DB_URL` | **Sí** | La URL JDBC del Session pooler de Supabase, como arriba |
+| `DB_USER` | **Sí** | `postgres.<ref>` |
+| `DB_PASSWORD` | **Sí** | Contraseña de la base de Supabase |
 | `JWT_SECRET` | **Sí** | Cadena aleatoria de **32 caracteres o más** (ver abajo) |
 | `ADMIN_INITIAL_PASSWORD` | **Sí en el primer arranque** | Contraseña del admin inicial, mínimo 12 caracteres |
 | `ADMIN_INITIAL_USERNAME` | No (default `admin`) | Nombre de usuario del admin inicial |
@@ -95,7 +123,8 @@ después no cambia la contraseña del admin ya creado: eso se hace desde el API
 
 ## 3. Orden de los pasos
 
-1. Crear la base en Neon y verificar que el esquema `public` esté vacío.
+1. Crear el proyecto en Supabase, apagar la Data API y verificar que el esquema
+   `public` esté vacío.
 2. Cargar **todas** las variables de la tabla en Render.
 3. Recién ahí, desplegar.
 
@@ -144,14 +173,11 @@ INACTIVO ese día. No es un bug del código, es el plan de hosting. Si importa,
 las salidas son un plan que no duerma, un ping externo que lo mantenga vivo, o
 recalcular el estado al consultarlo en vez de por tarea programada.
 
-**Render despierto no mantiene despierta a Neon.** El pool de conexiones está configurado
-(`spring.datasource.hikari.*` en `application.properties`) para cerrar todas sus
-conexiones un minuto después del último uso y no mandar keepalives; con eso Neon ve
-5 minutos sin actividad y suspende el cómputo aunque el servicio de Render siga prendido.
-Para que esto se sostenga, lo que mantenga vivo a Render tiene que pegarle a `/ping`, que
-no toca la base: un monitor apuntado a un endpoint con consultas (o un health check que
-chequee la base) vuelve a despertar a Neon en cada pasada. El job de medianoche la
-despierta una vez por día, y eso está bien.
+**El pool de conexiones usa los defaults de Hikari** (10 conexiones abiertas), que
+entran en el límite del Session pooler del plan gratis de Supabase. Con Neon el pool
+estaba configurado para vaciarse solo, así Neon podía suspender el cómputo; se sacó
+al pasar a Supabase, que no cobra por horas de cómputo. Si algún día se vuelve a una
+base que factura cómputo, esa configuración está en el commit `35bcdd4`.
 
 **La zona horaria del contenedor es UTC, pero la app no depende de eso (desde la Fase 9).**
 El `Dockerfile` no la fija y no hace falta: el cron declara su zona
@@ -182,7 +208,7 @@ Publicada el 2026-09-26 en `https://gimnasioathletics.vercel.app` (plan Hobby,
 producción desde `master` del front). La web le pide el API a su propio dominio
 y `vercel.json` reenvía `/api/*` a Render, así la cookie de refresh es del
 dominio de la web y Safari no la bloquea. Vercel solo sirve la web: todos los
-datos siguen yendo a Render y a Neon. **Es un MVP**: el plan Hobby de Vercel es
+datos siguen yendo a Render y a Supabase. **Es un MVP**: el plan Hobby de Vercel es
 para uso no comercial.
 
 **Hecho (2026-09-24): el límite de intentos de login por IP.** Antes usaba
@@ -243,4 +269,4 @@ bloquea el MVP):
    En el plan gratis la primera petición después de dormir tardó más de 90
    segundos (medido el 2026-09-24), y detrás de Vercel puede cortarse antes. Con
    el servicio despierto también corre el job de medianoche (§6), y como `/ping`
-   no toca la base, Neon igual se duerme.
+   no toca la base, no genera consultas de más.
