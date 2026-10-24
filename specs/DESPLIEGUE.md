@@ -81,7 +81,7 @@ los datos empiezan a importar, sacá un `pg_dump` cada tanto.
 | `JWT_ACCESS_EXPIRATION_MS` | No | Default 30 min |
 | `JWT_REFRESH_EXPIRATION_MS` | No | Default 30 días |
 | `REFRESH_COOKIE_SECURE` | No | Default `true`, correcto en producción |
-| `REFRESH_COOKIE_SAMESITE` | No | Default `None`, para que la cookie viaje entre dominios distintos |
+| `REFRESH_COOKIE_SAMESITE` | No | Default `Lax` (desde el 2026-10-23; antes `None`). Detrás del proxy de Vercel la web y el API son el mismo sitio, así que no hace falta `None`. Solo poner `None` si la web vuelve a llamar al API en otro dominio |
 | `RATE_LIMIT_TRUSTED_PROXIES` | No (default `1`) | Cuántos proxies propios hay delante de la app, para que el límite de intentos de login tome la IP real del usuario de `X-Forwarded-For`. `1` = solo Render; `2` = Vercel + Render. Ver §7 |
 | `SWAGGER_ENABLED` | No (default `false`) | `true` publica Swagger (`/swagger-ui/index.html`, `/v3/api-docs`). Apagado en producción a propósito: muestra el mapa completo de la API. Prenderlo solo un rato si hace falta consultar el contrato desplegado |
 
@@ -218,6 +218,17 @@ balanceador, compartida por todos. Ahora `RateLimitFilter` toma la IP de
 derecha (las de la izquierda las puede escribir cualquiera), y si no hay header
 usa `getRemoteAddr()`.
 
+**Arreglado (2026-10-23): el límite se salteaba escribiendo la ruta de otra
+forma.** El filtro comparaba `getRequestURI()`, la ruta cruda, pero Spring MVC
+resuelve la decodificada: `POST /api/v1/usuarios/%6cogin` llegaba al login sin
+estar en la lista de rutas limitadas, y cada variante (`%6C`, `;x=1`, `//`)
+tenía su propio cupo. Medido en producción: con `/login` el sexto intento dio
+429 y en el mismo minuto `/%6cogin` siguió respondiendo 401 ocho veces más.
+Ahora la ruta se normaliza antes de comparar (`rutaNormalizada`, con
+`UrlPathHelper`) y todas las variantes comparten el cupo. Para verificarlo
+después de un despliegue: 6 intentos a `/login` y uno a `/%6cogin` en el mismo
+minuto; el último tiene que dar 429.
+
 **Medido en producción el 2026-09-26**, con logins fallidos contra un email que
 no existe:
 
@@ -261,9 +272,11 @@ bloquea el MVP):
    procesar `X-Forwarded-Host`, el login da **403 "Invalid CORS request"**. Si
    aparece ese 403, es esto. `localhost:5173` queda para `pnpm dev:prod` (la web
    local contra producción).
-3. **`REFRESH_COOKIE_SAMESITE=Lax`** (al 2026-09-26 todavía sin cargar). `None`
-   era para web y API en dominios distintos; detrás del proxy son el mismo sitio,
-   y `Lax` suma protección contra CSRF. `REFRESH_COOKIE_SECURE` sigue en `true`.
+3. **`REFRESH_COOKIE_SAMESITE=Lax`**: cargada (el 2026-10-23 la cookie ya
+   salía con `SameSite=Lax`), y desde ese día es también el default del código,
+   así que un servicio recreado sin la variable queda igual. `None` era para web
+   y API en dominios distintos; detrás del proxy son el mismo sitio, y `Lax` suma
+   protección contra CSRF. `REFRESH_COOKIE_SECURE` sigue en `true`.
 4. **Cold start: decidido el 2026-09-25**, un cron externo que le pegue a `/ping`
    cada ~10 minutos, directo a `*.onrender.com` y no a la web. Lo arma el dueño.
    En el plan gratis la primera petición después de dormir tardó más de 90
