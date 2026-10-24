@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 import java.nio.charset.StandardCharsets;
 import java.io.IOException;
@@ -63,12 +64,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                      @NonNull HttpServletResponse response,
                                      @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        if (!"POST".equalsIgnoreCase(request.getMethod()) || !RUTAS_LIMITADAS.contains(request.getRequestURI())) {
+        String ruta = rutaNormalizada(request);
+        if (!"POST".equalsIgnoreCase(request.getMethod()) || !RUTAS_LIMITADAS.contains(ruta)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String clave = resolverIpCliente(request) + ":" + request.getRequestURI();
+        String clave = resolverIpCliente(request) + ":" + ruta;
         Bucket bucket = buckets.computeIfAbsent(clave, k -> crearBucket());
 
         if (bucket.tryConsume(1)) {
@@ -82,6 +84,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     "{\"status\":429,\"mensaje\":\"Demasiados intentos, esperá un minuto\"}"
             );
         }
+    }
+
+    /**
+     * La ruta tal como la va a resolver Spring MVC: decodificada, sin `;...` y sin barras
+     * repetidas. Con {@code getRequestURI()} (la ruta cruda) {@code /api/v1/usuarios/%6cogin}
+     * llegaba igual al login pero no estaba en {@code RUTAS_LIMITADAS}, y cada forma de escribir
+     * la misma ruta tenía su propio cupo: el límite se salteaba (medido en producción el 23/10).
+     */
+    String rutaNormalizada(HttpServletRequest request) {
+        return UrlPathHelper.defaultInstance.getPathWithinApplication(request);
     }
 
     /**

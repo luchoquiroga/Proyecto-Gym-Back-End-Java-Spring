@@ -47,6 +47,20 @@ class RateLimitFilterTest {
     }
 
     @Test
+    @DisplayName("Otra forma de escribir la ruta del login (codificada, con ';' o '//') comparte el mismo cupo")
+    void doFilterInternal_rutaEscritaDeOtraForma_deberiaCompartirElCupo() throws Exception {
+        RateLimitFilter filtro = new RateLimitFilter(1, 1);
+        FilterChain chain = mock(FilterChain.class);
+
+        assertEquals(200, loginEn(filtro, chain, "/api/v1/usuarios/login").getStatus());
+        // Spring MVC resuelve todas estas al mismo endpoint de login.
+        assertEquals(429, loginEn(filtro, chain, "/api/v1/usuarios/%6cogin").getStatus());
+        assertEquals(429, loginEn(filtro, chain, "/api/v1/usuarios/%6C%6F%67%69%6E").getStatus());
+        assertEquals(429, loginEn(filtro, chain, "/api/v1/usuarios/login;x=1").getStatus());
+        assertEquals(429, loginEn(filtro, chain, "/api/v1//usuarios/login").getStatus());
+    }
+
+    @Test
     @DisplayName("No debe limitar rutas que no son de login")
     void doFilterInternal_rutaNoLimitada_deberiaDejarPasarSiempre() throws Exception {
         RateLimitFilter filtro = new RateLimitFilter(1, 1);
@@ -138,6 +152,14 @@ class RateLimitFilterTest {
         request.addHeader("X-Forwarded-For", "200.1.1.1");
 
         assertEquals("200.1.1.1", filtro.resolverIpCliente(request));
+    }
+
+    private MockHttpServletResponse loginEn(RateLimitFilter filtro, FilterChain chain, String ruta) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", ruta);
+        request.setRemoteAddr("127.0.0.1");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filtro.doFilterInternal(request, response, chain);
+        return response;
     }
 
     private MockHttpServletResponse loginDesdeProxy(RateLimitFilter filtro, FilterChain chain, String ipCliente)
