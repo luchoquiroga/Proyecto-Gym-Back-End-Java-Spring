@@ -147,7 +147,7 @@ class DashboardControllerIntegrationTest {
                         .param("desde", "2001-05").param("hasta", "2001-05")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].totalGanancias").value(plan.getPrecio()))
+                .andExpect(jsonPath("$[0].totalGanancias").value(plan.getPrecio().doubleValue()))
                 .andExpect(jsonPath("$[0].cantidadPagos").value(1))
                 .andReturn();
 

@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 /**
  * DTO con el resumen de ganancias de un mes puntual, para el dashboard del administrador.
  */
@@ -14,6 +16,6 @@ public class GananciasMensualesResponse {
 
     private int anio;
     private int mes;
-    private double totalGanancias;
+    private BigDecimal totalGanancias;
     private long cantidadPagos;
 }

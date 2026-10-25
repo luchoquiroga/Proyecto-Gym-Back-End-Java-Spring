@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -49,11 +50,11 @@ class VencimientoServiceTest {
         vencimientoService = new VencimientoServiceImpl(pagoRepository, clienteRepository, RELOJ);
     }
 
-    private final Plan planMensual = new Plan(1, "Pase Mensual", 32500.0, 30);
+    private final Plan planMensual = new Plan(1, "Pase Mensual", new BigDecimal("32500"), 30);
 
     private Pago pagoConVencimientoHace(int dias, Cliente cliente) {
         LocalDate fechaVencimiento = HOY.minusDays(dias);
-        return new Pago(1, cliente, planMensual, 32500.0, fechaVencimiento.minusDays(30), fechaVencimiento, null);
+        return new Pago(1, cliente, planMensual, new BigDecimal("32500"), fechaVencimiento.minusDays(30), fechaVencimiento, null);
     }
 
     @Test

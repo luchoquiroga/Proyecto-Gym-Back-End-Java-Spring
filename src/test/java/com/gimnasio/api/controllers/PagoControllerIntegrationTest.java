@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -229,7 +230,7 @@ class PagoControllerIntegrationTest {
                         .header("Authorization", "Bearer " + tokenAdmin)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new PagoRequest(cliente.getId(), plan.getId(), 1.0, LocalDate.now()))))
+                                new PagoRequest(cliente.getId(), plan.getId(), new BigDecimal("1"), LocalDate.now()))))
                 .andExpect(status().isBadRequest());
 
         assertEquals(pagosAntes, pagoRepository.count());
@@ -419,7 +420,7 @@ class PagoControllerIntegrationTest {
 
         // Si el total no baja, el desglose del mes y el numero del dashboard dejan de
         // coincidir y nadie puede saber cual de los dos miente.
-        assertEquals(totalAntes - pago.getMontoAbonado(), gananciasDelMes(tokenAdmin), 0.001);
+        assertEquals(totalAntes - pago.getMontoAbonado().doubleValue(), gananciasDelMes(tokenAdmin), 0.001);
     }
 
     @Test

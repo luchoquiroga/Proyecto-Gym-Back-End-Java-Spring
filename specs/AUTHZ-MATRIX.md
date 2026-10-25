@@ -89,11 +89,10 @@ Público.
 
 ## Gaps conocidos
 
-**No hay limpieza de refresh tokens vencidos.** `refresh_tokens` y
-`cliente_refresh_tokens` solo crecen: `revocar` marca `revocado = true` y nada
-borra nunca una fila, ni siquiera cuando ya expiró. Dejó de ser urgente el
-2026-09-15 —ya no bloquea ninguna baja, ver Historial— pero sigue siendo una
-tabla que crece sin techo.
+~~**No hay limpieza de refresh tokens vencidos.**~~ **Cerrado el 2026-10-24**:
+`LimpiezaRefreshTokensService` borra todos los días a las 03:00 los tokens de los
+dos portales vencidos hace más de 7 días, con un índice por `expiracion` (V9).
+Borrar es seguro porque un token sin fila se rechaza ("Refresh token desconocido").
 
 **Un access token sobrevive a la baja de su cuenta.**
 `JwtAuthenticationFilter` no consulta la base, así que quien fue dado de baja

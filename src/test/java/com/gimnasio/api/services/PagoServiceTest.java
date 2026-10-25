@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -66,7 +67,7 @@ class PagoServiceTest {
         pagoService = new PagoServiceImpl(pagoRepository, clienteRepository, planRepository,
                 usuarioRepository, vencimientoService, RELOJ);
         clienteInactivo = new Cliente(1, "Lucía", "Pérez", "11223344", "11223344", null, null, EstadoCliente.INACTIVO, null);
-        planMensual = new Plan(1, "Pase Mensual", 32500.0, 30);
+        planMensual = new Plan(1, "Pase Mensual", new BigDecimal("32500"), 30);
         cajero = new Usuario(7, "gerencia1", "hash-irrelevante", RolUsuario.GERENCIA);
     }
 
@@ -83,11 +84,11 @@ class PagoServiceTest {
         when(usuarioRepository.findById(7)).thenReturn(Optional.of(cajero));
         when(pagoRepository.save(any(Pago.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Pago pagoRegistrado = pagoService.registrarPago(1, 1, 32500.0, fechaPago, 7);
+        Pago pagoRegistrado = pagoService.registrarPago(1, 1, new BigDecimal("32500"), fechaPago, 7);
 
         // 1. Verificar datos del pago
         assertNotNull(pagoRegistrado);
-        assertEquals(32500.0, pagoRegistrado.getMontoAbonado());
+        assertEquals(new BigDecimal("32500"), pagoRegistrado.getMontoAbonado());
         assertEquals(fechaPago, pagoRegistrado.getFechaPago());
         assertEquals(fechaVencimientoEsperada, pagoRegistrado.getFechaVencimiento());
 
@@ -113,7 +114,7 @@ class PagoServiceTest {
         when(usuarioRepository.findById(7)).thenReturn(Optional.of(cajero));
         when(pagoRepository.save(any(Pago.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Pago pagoRegistrado = pagoService.registrarPago(1, 1, 32500.0, fechaPago, 7);
+        Pago pagoRegistrado = pagoService.registrarPago(1, 1, new BigDecimal("32500"), fechaPago, 7);
 
         // El pago se registra (es un hecho contable real), pero no pone al día a nadie.
         assertNotNull(pagoRegistrado);
@@ -131,7 +132,7 @@ class PagoServiceTest {
 
         // $1 por un plan de $32500: antes esto daba de alta un mes completo.
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
-            pagoService.registrarPago(1, 1, 1.0, HOY, 7);
+            pagoService.registrarPago(1, 1, new BigDecimal("1"), HOY, 7);
         });
 
         assertTrue(ex.getMessage().contains("menor al precio del plan"));
@@ -159,7 +160,7 @@ class PagoServiceTest {
         when(clienteRepository.findByIdParaActualizar(99)).thenReturn(Optional.empty());
 
         RecursoNoEncontradoException ex = assertThrows(RecursoNoEncontradoException.class, () -> {
-            pagoService.registrarPago(99, 1, 32500.0, HOY, 7);
+            pagoService.registrarPago(99, 1, new BigDecimal("32500"), HOY, 7);
         });
 
         assertTrue(ex.getMessage().contains("Cliente no encontrado con ID 99"));
@@ -173,7 +174,7 @@ class PagoServiceTest {
         when(planRepository.findById(99)).thenReturn(Optional.empty());
 
         RecursoNoEncontradoException ex = assertThrows(RecursoNoEncontradoException.class, () -> {
-            pagoService.registrarPago(1, 99, 32500.0, HOY, 7);
+            pagoService.registrarPago(1, 99, new BigDecimal("32500"), HOY, 7);
         });
 
         assertTrue(ex.getMessage().contains("Plan no encontrado con ID 99"));
@@ -220,8 +221,8 @@ class PagoServiceTest {
     @Test
     @DisplayName("No se puede anular un pago si otro se cobró durante su período")
     void anular_conPagoCobradoDuranteSuPeriodo_deberiaRechazar() {
-        Pago pago = new Pago(10, clienteInactivo, planMensual, 32500.0, HOY.minusDays(10), HOY.plusDays(20), null);
-        Pago posterior = new Pago(11, clienteInactivo, planMensual, 32500.0, HOY, HOY.plusDays(50), null);
+        Pago pago = new Pago(10, clienteInactivo, planMensual, new BigDecimal("32500"), HOY.minusDays(10), HOY.plusDays(20), null);
+        Pago posterior = new Pago(11, clienteInactivo, planMensual, new BigDecimal("32500"), HOY, HOY.plusDays(50), null);
         when(pagoRepository.findClienteIdDelPago(10)).thenReturn(Optional.of(1));
         when(pagoRepository.findById(10)).thenReturn(Optional.of(pago));
         when(pagoRepository.findCobradosDuranteElPeriodo(1, 10, HOY.minusDays(10), HOY.plusDays(20)))

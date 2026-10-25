@@ -1,12 +1,14 @@
 package com.gimnasio.api.dto;
 
 import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
@@ -28,7 +30,8 @@ public class PagoRequest {
     // Tope de cordura: un 1e400 en el JSON llega como Infinity, se guardaba tal cual y
     // convertía en Infinity las ganancias de todo el mes (que además no es JSON válido).
     @DecimalMax(value = "1000000000", message = "El monto abonado no puede superar los 1.000.000.000")
-    private Double montoAbonado;
+    @Digits(integer = 10, fraction = 2, message = "El monto abonado admite hasta dos decimales")
+    private BigDecimal montoAbonado;
 
     private LocalDate fechaPago;
 }

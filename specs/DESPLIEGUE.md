@@ -35,8 +35,29 @@ API, así que se apaga entera.
 
 Desde la V8 hay además una segunda red: todas las tablas tienen RLS activo **sin
 políticas**. Si la Data API se prende por error, `anon` lee cero filas. La app no se
-entera porque se conecta como dueña de las tablas, y el dueño se saltea RLS: no le
-agregues `FORCE ROW LEVEL SECURITY`, porque eso sí la deja sin datos.
+entera: Flyway migra como dueño de las tablas, que se saltea RLS, y la app atiende con
+`gimnasio_runtime`, que tiene `BYPASSRLS` (V10, abajo). No le agregues
+`FORCE ROW LEVEL SECURITY`, porque eso sí deja sin datos a Flyway. Desde la V10, además,
+`anon` y `authenticated` no tienen ningún permiso sobre las tablas.
+
+**Son dos usuarios de base, no uno (desde la V10).** Flyway migra con el dueño
+(`postgres.<ref>`), y la app atiende cada pedido con `gimnasio_runtime`, que puede leer,
+insertar y modificar, pero **no puede borrar pagos, socios ni cuentas de staff**, ni
+tocar el esquema. Solo borra planes y refresh tokens, que es lo único que la app borra.
+Así la regla "un pago no se borra, se anula" la impone la base y no solo el código. El
+detalle está en el comentario de la V10, y `PermisosDeLaBaseIntegrationTest` lo verifica.
+
+`gimnasio_runtime` se crea a mano, **una vez y antes de desplegar la V10**, en el
+editor SQL de Supabase (que corre como `postgres`). La contraseña la generás vos y va
+solo a Render, nunca al repo:
+
+```sql
+CREATE ROLE gimnasio_runtime LOGIN PASSWORD '<contraseña nueva>' BYPASSRLS NOINHERIT;
+```
+
+Por el pooler se conecta como `gimnasio_runtime.<ref>`, con el mismo `<ref>` que
+`postgres.<ref>`. Si no existe cuando arranca la V10, el `GRANT` falla y la app no
+levanta: es a propósito.
 
 **Hay que usar el pooler, no la conexión directa.** La conexión directa
 (`db.<ref>.supabase.co`) es solo IPv6 y Render sale por IPv4: no conecta. En
@@ -76,8 +97,10 @@ los datos empiezan a importar, sacá un `pg_dump` cada tanto.
 | Variable | ¿Obligatoria? | Qué poner |
 |---|---|---|
 | `DB_URL` | **Sí** | La URL JDBC del Session pooler de Supabase, como arriba |
-| `DB_USER` | **Sí** | `postgres.<ref>` |
-| `DB_PASSWORD` | **Sí** | Contraseña de la base de Supabase |
+| `DB_USER` | **Sí** | El usuario de la app: `gimnasio_runtime.<ref>` (desde la V10; antes `postgres.<ref>`) |
+| `DB_PASSWORD` | **Sí** | La contraseña de `gimnasio_runtime` |
+| `DB_MIGRATION_USER` | **Sí** (desde la V10) | El dueño, con el que migra Flyway: `postgres.<ref>`. Sin esta variable Flyway usa `DB_USER` |
+| `DB_MIGRATION_PASSWORD` | **Sí** (desde la V10) | Contraseña de la base de Supabase (la del proyecto) |
 | `JWT_SECRET` | **Sí** | Cadena aleatoria de **32 caracteres o más** (ver abajo) |
 | `ADMIN_INITIAL_PASSWORD` | **Sí en el primer arranque** | Contraseña del admin inicial, mínimo 12 caracteres |
 | `ADMIN_INITIAL_USERNAME` | No (default `admin`) | Nombre de usuario del admin inicial |
@@ -130,11 +153,31 @@ después no cambia la contraseña del admin ya creado: eso se hace desde el API
 
 1. Crear el proyecto en Supabase, apagar la Data API y verificar que el esquema
    `public` esté vacío.
-2. Cargar **todas** las variables de la tabla en Render.
-3. Recién ahí, desplegar.
+2. Crear `gimnasio_runtime` en el editor SQL (§1).
+3. Cargar **todas** las variables de la tabla en Render.
+4. Recién ahí, desplegar.
 
-Invertir 2 y 3 es el error que cuesta caro: el primer arranque contra base vacía
+Invertir 3 y 4 es el error que cuesta caro: el primer arranque contra base vacía
 sin `ADMIN_INITIAL_PASSWORD` falla, y sin `DB_*` ni siquiera conecta.
+
+### Pasar a la V10 una base que ya está andando
+
+Con la base de producción ya creada, el cambio va en pasos que nunca dejan a la app sin
+poder arrancar:
+
+1. Crear `gimnasio_runtime` en el editor SQL de Supabase (§1).
+2. En Render, agregar `DB_MIGRATION_USER` y `DB_MIGRATION_PASSWORD` con **los mismos
+   valores que hoy tienen** `DB_USER` y `DB_PASSWORD`. No cambia nada todavía.
+3. Desplegar la V10 (merge a `master`). Flyway, como dueño, le da los permisos a
+   `gimnasio_runtime`; la app sigue entrando como dueña.
+4. En Render, cambiar `DB_USER` a `gimnasio_runtime.<ref>` y `DB_PASSWORD` a su
+   contraseña. Render redespliega solo.
+5. Verificar: login en la web, un cobro de prueba y anularlo. Y en el editor SQL,
+   `SELECT usename, count(*) FROM pg_stat_activity WHERE datname = 'postgres' GROUP BY 1;`
+   tiene que mostrar las conexiones de la app como `gimnasio_runtime`.
+
+Si el paso 4 falla (no conecta), se vuelve atrás restaurando `DB_USER` y `DB_PASSWORD`:
+los permisos de la V10 no le molestan al dueño.
 
 ---
 

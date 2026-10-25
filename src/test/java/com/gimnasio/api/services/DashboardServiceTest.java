@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.Clock;
 import java.time.Instant;
@@ -55,14 +56,14 @@ class DashboardServiceTest {
         LocalDate inicio = LocalDate.of(2026, 8, 1);
         LocalDate fin = LocalDate.of(2026, 8, 31);
 
-        when(pagoRepository.sumarMontoAbonadoEntre(inicio, fin)).thenReturn(97500.0);
+        when(pagoRepository.sumarMontoAbonadoEntre(inicio, fin)).thenReturn(new BigDecimal("97500"));
         when(pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(inicio, fin)).thenReturn(3L);
 
         GananciasMensualesResponse resultado = dashboardService.obtenerGananciasMensuales(2026, 8);
 
         assertEquals(2026, resultado.getAnio());
         assertEquals(8, resultado.getMes());
-        assertEquals(97500.0, resultado.getTotalGanancias());
+        assertEquals(new BigDecimal("97500.00"), resultado.getTotalGanancias());
         assertEquals(3L, resultado.getCantidadPagos());
     }
 
@@ -73,14 +74,14 @@ class DashboardServiceTest {
         LocalDate inicio = mesActual.atDay(1);
         LocalDate fin = mesActual.atEndOfMonth();
 
-        when(pagoRepository.sumarMontoAbonadoEntre(inicio, fin)).thenReturn(0.0);
+        when(pagoRepository.sumarMontoAbonadoEntre(inicio, fin)).thenReturn(new BigDecimal("0"));
         when(pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(inicio, fin)).thenReturn(0L);
 
         GananciasMensualesResponse resultado = dashboardService.obtenerGananciasMensuales(null, null);
 
         assertEquals(mesActual.getYear(), resultado.getAnio());
         assertEquals(mesActual.getMonthValue(), resultado.getMes());
-        assertEquals(0.0, resultado.getTotalGanancias());
+        assertEquals(new BigDecimal("0.00"), resultado.getTotalGanancias());
         assertEquals(0L, resultado.getCantidadPagos());
     }
 
@@ -111,7 +112,7 @@ class DashboardServiceTest {
     @Test
     @DisplayName("La serie sin parámetros son los 12 meses hasta el actual de Argentina, del más viejo al más nuevo")
     void obtenerGananciasPorMes_sinParametros_deberiaDevolverLosUltimos12Meses() {
-        when(pagoRepository.sumarMontoAbonadoEntre(any(), any())).thenReturn(0.0);
+        when(pagoRepository.sumarMontoAbonadoEntre(any(), any())).thenReturn(new BigDecimal("0"));
         when(pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(any(), any())).thenReturn(0L);
 
         List<GananciasMensualesResponse> serie = dashboardService.obtenerGananciasPorMes(null, null);
@@ -128,17 +129,17 @@ class DashboardServiceTest {
     @DisplayName("La serie cruza el cambio de año y rellena en cero los meses sin cobros")
     void obtenerGananciasPorMes_conMesSinCobros_deberiaTraerloEnCero() {
         YearMonth diciembre = YearMonth.of(2025, 12);
-        when(pagoRepository.sumarMontoAbonadoEntre(any(), any())).thenReturn(0.0);
+        when(pagoRepository.sumarMontoAbonadoEntre(any(), any())).thenReturn(new BigDecimal("0"));
         when(pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(any(), any())).thenReturn(0L);
-        when(pagoRepository.sumarMontoAbonadoEntre(diciembre.atDay(1), diciembre.atEndOfMonth())).thenReturn(50000.0);
+        when(pagoRepository.sumarMontoAbonadoEntre(diciembre.atDay(1), diciembre.atEndOfMonth())).thenReturn(new BigDecimal("50000"));
         when(pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(diciembre.atDay(1), diciembre.atEndOfMonth())).thenReturn(2L);
 
         List<GananciasMensualesResponse> serie =
                 dashboardService.obtenerGananciasPorMes(YearMonth.of(2025, 11), YearMonth.of(2026, 1));
 
         assertEquals(3, serie.size());
-        assertEquals(0.0, serie.get(0).getTotalGanancias());
-        assertEquals(50000.0, serie.get(1).getTotalGanancias());
+        assertEquals(new BigDecimal("0.00"), serie.get(0).getTotalGanancias());
+        assertEquals(new BigDecimal("50000.00"), serie.get(1).getTotalGanancias());
         assertEquals(2L, serie.get(1).getCantidadPagos());
         assertEquals(2026, serie.get(2).getAnio());
         assertEquals(1, serie.get(2).getMes());

@@ -75,7 +75,7 @@ public class PlanServiceImpl implements PlanService {
         if (plan.getNombre() == null || plan.getNombre().trim().isEmpty()) {
             throw new IllegalArgumentException("El nombre del plan es obligatorio.");
         }
-        if (plan.getPrecio() == null || plan.getPrecio() < 0) {
+        if (plan.getPrecio() == null || plan.getPrecio().signum() < 0) {
             throw new IllegalArgumentException("El precio del plan no puede ser negativo ni nulo.");
         }
         if (plan.getDuracion() == null || plan.getDuracion() <= 0) {

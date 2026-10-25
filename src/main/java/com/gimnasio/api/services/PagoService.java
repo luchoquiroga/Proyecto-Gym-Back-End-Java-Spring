@@ -4,6 +4,7 @@ import com.gimnasio.api.models.Pago;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -79,6 +80,6 @@ public interface PagoService {
      * @return El pago registrado y persistido.
      * @throws IllegalArgumentException si el monto es menor al precio del plan.
      */
-    Pago registrarPago(Integer clienteId, Integer planId, Double montoAbonado, LocalDate fechaPago,
+    Pago registrarPago(Integer clienteId, Integer planId, BigDecimal montoAbonado, LocalDate fechaPago,
                        Integer registradoPorId);
 }

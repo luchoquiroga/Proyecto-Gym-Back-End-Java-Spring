@@ -12,6 +12,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+
 /**
  * Seeder / Inicializador de datos iniciales.
  * Se ejecuta al iniciar la aplicación para garantizar que existan el usuario admin y los planes base.
@@ -71,8 +73,8 @@ public class DataInitializer implements CommandLineRunner {
 
         // 2. Inicializar catálogo de planes base si la tabla está vacía
         if (planRepository.count() == 0) {
-            Plan paseMensual = new Plan(null, "Pase Mensual", 32500.0, 30);
-            Plan paseDiario = new Plan(null, "Pase Diario / Clase", 1000.0, 1);
+            Plan paseMensual = new Plan(null, "Pase Mensual", new BigDecimal("32500.00"), 30);
+            Plan paseDiario = new Plan(null, "Pase Diario / Clase", new BigDecimal("1000.00"), 1);
 
             planRepository.save(paseMensual);
             planRepository.save(paseDiario);

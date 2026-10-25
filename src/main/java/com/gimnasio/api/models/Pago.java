@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -30,8 +31,8 @@ public class Pago {
     @JoinColumn(name = "plan_id", nullable = false)
     private Plan plan;
 
-    @Column(name = "monto_abonado", nullable = false)
-    private Double montoAbonado;
+    @Column(name = "monto_abonado", nullable = false, precision = 12, scale = 2)
+    private BigDecimal montoAbonado;
 
     @Column(name = "fecha_pago", nullable = false)
     private LocalDate fechaPago;
@@ -90,7 +91,7 @@ public class Pago {
      * autor y su motivo. Este constructor existe para no obligar a cada llamador a repetir
      * los cuatro campos de anulación vacíos, y para que no se puedan fijar desde un alta.
      */
-    public Pago(Integer id, Cliente cliente, Plan plan, Double montoAbonado,
+    public Pago(Integer id, Cliente cliente, Plan plan, BigDecimal montoAbonado,
                 LocalDate fechaPago, LocalDate fechaVencimiento, Usuario registradoPor) {
         this(id, cliente, plan, montoAbonado, fechaPago, fechaVencimiento, registradoPor,
                 false, null, null, null);

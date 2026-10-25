@@ -2,6 +2,7 @@ package com.gimnasio.api.services.impl;
 
 import com.gimnasio.api.dto.GananciasMensualesResponse;
 import com.gimnasio.api.dto.SociosPorEstadoResponse;
+import com.gimnasio.api.models.Plata;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.repositories.ClienteRepository;
 import com.gimnasio.api.repositories.PagoRepository;
@@ -10,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -88,7 +90,8 @@ public class DashboardServiceImpl implements DashboardService {
         LocalDate inicio = periodo.atDay(1);
         LocalDate fin = periodo.atEndOfMonth();
 
-        double totalGanancias = pagoRepository.sumarMontoAbonadoEntre(inicio, fin);
+        // Normalizado porque el COALESCE devuelve el 0 literal (sin decimales) en un mes sin cobros.
+        BigDecimal totalGanancias = Plata.normalizar(pagoRepository.sumarMontoAbonadoEntre(inicio, fin));
         long cantidadPagos = pagoRepository.countByFechaPagoBetweenAndAnuladoFalse(inicio, fin);
 
         return new GananciasMensualesResponse(

@@ -3,12 +3,15 @@ package com.gimnasio.api.dto;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
 
 /**
  * DTO para alta/edición de un Plan. Sin campo id: el alta nunca debe poder
@@ -26,9 +29,11 @@ public class PlanRequest {
     @NotNull(message = "El precio es obligatorio")
     @Positive(message = "El precio debe ser mayor a cero")
     // Tope de cordura, no de negocio: sin él, un 1e400 en el JSON llega como Infinity, la
-    // columna DOUBLE PRECISION lo acepta y ningún pago vuelve a alcanzar el precio del plan.
+    // columna lo aceptaba (era DOUBLE PRECISION hasta la V9) y ningún pago volvía a alcanzar
+    // el precio del plan.
     @DecimalMax(value = "1000000000", message = "El precio no puede superar los 1.000.000.000")
-    private Double precio;
+    @Digits(integer = 10, fraction = 2, message = "El precio admite hasta dos decimales")
+    private BigDecimal precio;
 
     @NotNull(message = "La duración es obligatoria")
     @Positive(message = "La duración debe ser mayor a cero")

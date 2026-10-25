@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,7 +32,7 @@ class PlanServiceTest {
 
     @BeforeEach
     void setUp() {
-        planMensual = new Plan(1, "Pase Mensual", 32500.0, 30);
+        planMensual = new Plan(1, "Pase Mensual", new BigDecimal("32500"), 30);
     }
 
     @Test
@@ -39,7 +40,7 @@ class PlanServiceTest {
     void crear_conDatosValidos_deberiaGuardarPlan() {
         when(planRepository.save(any(Plan.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Plan nuevo = new Plan(null, "Pase Quincenal", 18000.0, 15);
+        Plan nuevo = new Plan(null, "Pase Quincenal", new BigDecimal("18000"), 15);
         Plan resultado = planService.crear(nuevo);
 
         assertNotNull(resultado);
@@ -52,7 +53,7 @@ class PlanServiceTest {
     void crear_conIdEnviado_deberiaIgnorarlo() {
         when(planRepository.save(any(Plan.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Plan conIdAjeno = new Plan(99, "Pase Quincenal", 18000.0, 15);
+        Plan conIdAjeno = new Plan(99, "Pase Quincenal", new BigDecimal("18000"), 15);
         Plan resultado = planService.crear(conIdAjeno);
 
         assertNull(resultado.getId());
@@ -61,7 +62,7 @@ class PlanServiceTest {
     @Test
     @DisplayName("Crear plan con precio negativo debe lanzar IllegalArgumentException")
     void crear_conPrecioNegativo_deberiaLanzarExcepcion() {
-        Plan invalido = new Plan(null, "Pase Inválido", -500.0, 30);
+        Plan invalido = new Plan(null, "Pase Inválido", new BigDecimal("-500"), 30);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
             planService.crear(invalido);

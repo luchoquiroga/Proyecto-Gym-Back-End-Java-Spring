@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -92,7 +93,7 @@ class ConcurrenciaIntegrationTest {
     @DisplayName("Dos anulaciones simultáneas del mismo pago: la segunda se rechaza y no pisa a la primera")
     void anular_dosVecesEnSimultaneo_laSegundaSeRechaza() throws Exception {
         Integer adminId = usuarioRepository.findByNombre("admin").orElseThrow().getId();
-        Plan plan = planRepository.save(new Plan(null, "Plan test concurrencia", 1000.0, 30));
+        Plan plan = planRepository.save(new Plan(null, "Plan test concurrencia", new BigDecimal("1000"), 30));
         Cliente cliente = clienteRepository.save(nuevoCliente());
         CountDownLatch soltarPrimera = new CountDownLatch(1);
         Future<?> primera = null;
