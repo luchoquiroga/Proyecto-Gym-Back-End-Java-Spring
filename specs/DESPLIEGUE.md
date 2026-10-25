@@ -94,12 +94,18 @@ los datos empiezan a importar, sacá un `pg_dump` cada tanto.
 
 ## 2. Render: variables de entorno
 
+> **El Render de producción usa `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` y
+> `SPRING_DATASOURCE_PASSWORD`** (verificado el 2026-10-24), no `DB_URL`, `DB_USER` y
+> `DB_PASSWORD`. Son equivalentes: Spring lee las `SPRING_DATASOURCE_*` directo y les da
+> prioridad sobre `application.properties`. Donde abajo dice `DB_USER` o `DB_PASSWORD`, en
+> ese servicio va la `SPRING_DATASOURCE_*` correspondiente.
+
 | Variable | ¿Obligatoria? | Qué poner |
 |---|---|---|
 | `DB_URL` | **Sí** | La URL JDBC del Session pooler de Supabase, como arriba |
 | `DB_USER` | **Sí** | El usuario de la app: `gimnasio_runtime.<ref>` (desde la V10; antes `postgres.<ref>`) |
 | `DB_PASSWORD` | **Sí** | La contraseña de `gimnasio_runtime` |
-| `DB_MIGRATION_USER` | **Sí** (desde la V10) | El dueño, con el que migra Flyway: `postgres.<ref>`. Sin esta variable Flyway usa `DB_USER` |
+| `DB_MIGRATION_USER` | **Sí** (desde la V10) | El dueño, con el que migra Flyway: `postgres.<ref>`. Sin esta variable Flyway usa el mismo usuario que la app |
 | `DB_MIGRATION_PASSWORD` | **Sí** (desde la V10) | Contraseña de la base de Supabase (la del proyecto) |
 | `JWT_SECRET` | **Sí** | Cadena aleatoria de **32 caracteres o más** (ver abajo) |
 | `ADMIN_INITIAL_PASSWORD` | **Sí en el primer arranque** | Contraseña del admin inicial, mínimo 12 caracteres |
@@ -167,16 +173,18 @@ poder arrancar:
 
 1. Crear `gimnasio_runtime` en el editor SQL de Supabase (§1).
 2. En Render, agregar `DB_MIGRATION_USER` y `DB_MIGRATION_PASSWORD` con **los mismos
-   valores que hoy tienen** `DB_USER` y `DB_PASSWORD`. No cambia nada todavía.
+   valores que hoy tienen** `SPRING_DATASOURCE_USERNAME` y `SPRING_DATASOURCE_PASSWORD`
+   (o `DB_USER` y `DB_PASSWORD`, según cuál use el servicio). No cambia nada todavía.
 3. Desplegar la V10 (merge a `master`). Flyway, como dueño, le da los permisos a
    `gimnasio_runtime`; la app sigue entrando como dueña.
-4. En Render, cambiar `DB_USER` a `gimnasio_runtime.<ref>` y `DB_PASSWORD` a su
-   contraseña. Render redespliega solo.
+4. En Render, cambiar `SPRING_DATASOURCE_USERNAME` a `gimnasio_runtime.<ref>` y
+   `SPRING_DATASOURCE_PASSWORD` a su contraseña. Render redespliega solo.
 5. Verificar: login en la web, un cobro de prueba y anularlo. Y en el editor SQL,
    `SELECT usename, count(*) FROM pg_stat_activity WHERE datname = 'postgres' GROUP BY 1;`
    tiene que mostrar las conexiones de la app como `gimnasio_runtime`.
 
-Si el paso 4 falla (no conecta), se vuelve atrás restaurando `DB_USER` y `DB_PASSWORD`:
+Si el paso 4 falla (no conecta), se vuelve atrás restaurando `SPRING_DATASOURCE_USERNAME` y
+`SPRING_DATASOURCE_PASSWORD`:
 los permisos de la V10 no le molestan al dueño.
 
 ---
