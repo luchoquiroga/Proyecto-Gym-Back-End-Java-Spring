@@ -33,6 +33,11 @@ clave `anon` (que no es secreta, está pensada para ir en un front) leería
 `usuarios`, `clientes` y `pagos` sin pasar por este backend. Nosotros no usamos esa
 API, así que se apaga entera.
 
+Desde la V8 hay además una segunda red: todas las tablas tienen RLS activo **sin
+políticas**. Si la Data API se prende por error, `anon` lee cero filas. La app no se
+entera porque se conecta como dueña de las tablas, y el dueño se saltea RLS: no le
+agregues `FORCE ROW LEVEL SECURITY`, porque eso sí la deja sin datos.
+
 **Hay que usar el pooler, no la conexión directa.** La conexión directa
 (`db.<ref>.supabase.co`) es solo IPv6 y Render sale por IPv4: no conecta. En
 "Connect" elegí **Session pooler** (puerto 5432). No uses el Transaction pooler

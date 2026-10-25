@@ -23,6 +23,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
@@ -238,6 +239,11 @@ class DashboardControllerIntegrationTest {
         pago.setFechaPago(fechaPago);
         pago.setFechaVencimiento(fechaPago.plusDays(plan.getDuracion()));
         pago.setAnulado(anulado);
+        // Una anulación tiene fecha y motivo: la base rechaza la que no (V8).
+        if (anulado) {
+            pago.setFechaAnulacion(LocalDateTime.now());
+            pago.setMotivoAnulacion("Cargado por error");
+        }
         pagoRepository.save(pago);
     }
 
