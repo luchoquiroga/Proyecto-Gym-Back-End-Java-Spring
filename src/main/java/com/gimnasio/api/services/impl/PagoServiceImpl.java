@@ -4,6 +4,7 @@ import com.gimnasio.api.exceptions.RecursoNoEncontradoException;
 import com.gimnasio.api.models.Cliente;
 import com.gimnasio.api.models.Pago;
 import com.gimnasio.api.models.Plan;
+import com.gimnasio.api.models.Plata;
 import com.gimnasio.api.models.Usuario;
 import com.gimnasio.api.models.enums.EstadoCliente;
 import com.gimnasio.api.repositories.ClienteRepository;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -124,7 +126,7 @@ public class PagoServiceImpl implements PagoService {
 
     @Override
     @Transactional
-    public Pago registrarPago(Integer clienteId, Integer planId, Double montoAbonado, LocalDate fechaPago,
+    public Pago registrarPago(Integer clienteId, Integer planId, BigDecimal montoAbonado, LocalDate fechaPago,
                               Integer registradoPorId) {
         // 1. Validar que el cliente exista
         // Con la fila del socio bloqueada: ver ClienteRepository.findByIdParaActualizar.
@@ -152,15 +154,16 @@ public class PagoServiceImpl implements PagoService {
         }
 
         // 5. Establecer monto: si no se especifica, se cobra el precio oficial del plan.
-        Double montoFinal = (montoAbonado != null) ? montoAbonado : plan.getPrecio();
+        BigDecimal montoFinal = (montoAbonado != null) ? montoAbonado : plan.getPrecio();
 
         // 6. Regla de negocio: no existe el pago parcial. Un monto menor al precio del
         // plan se rechaza en vez de registrarse, porque antes cualquier importe (incluso
         // $1) daba de alta un período completo.
-        if (montoFinal < plan.getPrecio()) {
+        // compareTo y no equals: con BigDecimal, equals también compara la cantidad de decimales.
+        if (montoFinal.compareTo(plan.getPrecio()) < 0) {
             throw new IllegalArgumentException(
-                    "El monto abonado (" + montoFinal + ") es menor al precio del plan " + plan.getNombre()
-                            + " (" + plan.getPrecio() + "). No se admiten pagos parciales.");
+                    "El monto abonado (" + Plata.normalizar(montoFinal).toPlainString() + ") es menor al precio del plan "
+                            + plan.getNombre() + " (" + Plata.normalizar(plan.getPrecio()).toPlainString() + "). No se admiten pagos parciales.");
         }
 
         // 7. Calcular desde cuándo corre el período. Si el socio paga por adelantado, el

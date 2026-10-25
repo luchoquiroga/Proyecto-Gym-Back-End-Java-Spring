@@ -23,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -305,7 +306,7 @@ class ClienteServiceTest {
         ultimoPago.setFechaVencimiento(fechaUltimoPago);
         // Con plan, como en la base: pagos.plan_id es NOT NULL. De paso sirve para
         // comprobar que el plan vigente del socio sale del último pago.
-        ultimoPago.setPlan(new Plan(7, "Pase Mensual", 32500.0, 30));
+        ultimoPago.setPlan(new Plan(7, "Pase Mensual", new BigDecimal("32500"), 30));
         when(pagoRepository.findTopByClienteIdAndAnuladoFalseOrderByFechaVencimientoDesc(1)).thenReturn(Optional.of(ultimoPago));
 
         ClienteResponse resultado = clienteService.obtenerRespuestaPorId(1);
@@ -341,12 +342,12 @@ class ClienteServiceTest {
         Pago pagoClientePrueba = new Pago();
         pagoClientePrueba.setCliente(clientePrueba);
         pagoClientePrueba.setFechaVencimiento(fechaClientePrueba);
-        pagoClientePrueba.setPlan(new Plan(7, "Pase Mensual", 32500.0, 30));
+        pagoClientePrueba.setPlan(new Plan(7, "Pase Mensual", new BigDecimal("32500"), 30));
 
         Pago pagoOtroCliente = new Pago();
         pagoOtroCliente.setCliente(otroCliente);
         pagoOtroCliente.setFechaVencimiento(fechaOtroCliente);
-        pagoOtroCliente.setPlan(new Plan(8, "Pase Diario", 1000.0, 1));
+        pagoOtroCliente.setPlan(new Plan(8, "Pase Diario", new BigDecimal("1000"), 1));
 
         when(pagoRepository.findUltimoPagoPorCadaCliente())
                 .thenReturn(List.of(pagoClientePrueba, pagoOtroCliente));
@@ -376,12 +377,12 @@ class ClienteServiceTest {
         Pago primerPago = new Pago();
         primerPago.setCliente(clientePrueba);
         primerPago.setFechaVencimiento(mismaFecha);
-        primerPago.setPlan(new Plan(8, "Pase Diario", 1000.0, 1));
+        primerPago.setPlan(new Plan(8, "Pase Diario", new BigDecimal("1000"), 1));
 
         Pago segundoPago = new Pago();
         segundoPago.setCliente(clientePrueba);
         segundoPago.setFechaVencimiento(mismaFecha);
-        segundoPago.setPlan(new Plan(8, "Pase Diario", 1000.0, 1));
+        segundoPago.setPlan(new Plan(8, "Pase Diario", new BigDecimal("1000"), 1));
 
         when(pagoRepository.findUltimoPagoPorCadaCliente()).thenReturn(List.of(primerPago, segundoPago));
 

@@ -1,7 +1,9 @@
 package com.gimnasio.api.dto;
 
 import com.gimnasio.api.models.Pago;
+import com.gimnasio.api.models.Plata;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
@@ -15,7 +17,7 @@ import java.time.LocalDate;
  */
 public record PagoResponse(
         Integer id,
-        Double montoAbonado,
+        BigDecimal montoAbonado,
         LocalDate fechaPago,
         LocalDate fechaVencimiento,
         ClienteResumen cliente,
@@ -43,7 +45,7 @@ public record PagoResponse(
     public static PagoResponse desde(Pago pago) {
         return new PagoResponse(
                 pago.getId(),
-                pago.getMontoAbonado(),
+                Plata.normalizar(pago.getMontoAbonado()),
                 pago.getFechaPago(),
                 pago.getFechaVencimiento(),
                 new ClienteResumen(pago.getCliente().getId(), pago.getCliente().getNombre(),

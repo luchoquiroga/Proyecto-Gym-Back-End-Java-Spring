@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -62,7 +63,7 @@ public interface PagoRepository extends JpaRepository<Pago, Integer> {
     // entró, así que no puede sumar al total del mes ni contar como una operación.
     @Query("SELECT COALESCE(SUM(p.montoAbonado), 0) FROM Pago p " +
             "WHERE p.anulado = false AND p.fechaPago BETWEEN :inicio AND :fin")
-    Double sumarMontoAbonadoEntre(@Param("inicio") LocalDate inicio, @Param("fin") LocalDate fin);
+    BigDecimal sumarMontoAbonadoEntre(@Param("inicio") LocalDate inicio, @Param("fin") LocalDate fin);
 
     long countByFechaPagoBetweenAndAnuladoFalse(LocalDate inicio, LocalDate fin);
 
