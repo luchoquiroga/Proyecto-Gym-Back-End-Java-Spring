@@ -31,6 +31,9 @@
 		<!-- Boot 4.1.2 trae Jackson 3.1.7, vulnerable a SNYK-JAVA-TOOLSJACKSONCORE-21761838 (corregida en 3.1.8).
 		     Sacar esta línea cuando Boot traiga 3.1.8 o superior. -->
 		<jackson-bom.version>3.1.8</jackson-bom.version>
+		<!-- Boot 4.1.2 trae Jackson 2.21.7, vulnerable a SNYK-JAVA-COMFASTERXMLJACKSONCORE-21761837 (corregida en 2.21.8).
+		     Sacar esta línea cuando Boot traiga 2.21.8 o superior. -->
+		<jackson-2-bom.version>2.21.8</jackson-2-bom.version>
 	</properties>
 	<dependencies>
 		<dependency>
