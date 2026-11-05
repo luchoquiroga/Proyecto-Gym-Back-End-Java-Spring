@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.1.0</version>
+		<version>4.1.2</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.gimnasio</groupId>
@@ -28,6 +28,9 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- Boot 4.1.2 trae Jackson 3.1.7, vulnerable a SNYK-JAVA-TOOLSJACKSONCORE-21761838 (corregida en 3.1.8).
+		     Sacar esta línea cuando Boot traiga 3.1.8 o superior. -->
+		<jackson-bom.version>3.1.8</jackson-bom.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -68,7 +71,7 @@
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>3.1.1</version>
+			<version>3.2.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.postgresql</groupId>
