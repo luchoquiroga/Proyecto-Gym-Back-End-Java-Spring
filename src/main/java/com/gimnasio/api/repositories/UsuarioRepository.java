@@ -16,6 +16,9 @@ import java.util.Optional;
 public interface UsuarioRepository extends JpaRepository<Usuario, Integer> {
     Optional<Usuario> findByNombre(String nombre);
 
+    // Lo consulta JwtAuthenticationFilter en cada request de staff: un SELECT por PK, barato.
+    boolean existsByIdAndActivoTrue(Integer id);
+
     // Solo las cuentas vigentes: para saber si queda algún ADMIN que pueda administrar el
     // sistema, un ADMIN dado de baja no sirve (no puede loguearse). Contar todas dejaría dar
     // de baja al último ADMIN activo mientras hubiera otro inactivo en la tabla.
