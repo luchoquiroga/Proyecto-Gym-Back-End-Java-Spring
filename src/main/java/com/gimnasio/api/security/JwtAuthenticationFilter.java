@@ -65,10 +65,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Integer id = claims.get("id", Integer.class);
 
             // El JWT no se puede revocar: sin esto, un empleado dado de baja seguía operando
-            // con su access token hasta que vencía (hasta 30 min). Los socios no tienen baja
-            // de cuenta, así que no pagan esta consulta.
-            if (!JwtService.ROL_CLIENTE.equals(rol) && !usuarioRepository.existsByIdAndActivoTrue(id)) {
-                throw new JwtException("La cuenta de staff está dada de baja o no existe");
+            // con su access token hasta que vencía (hasta 30 min), y al reactivarlo sus tokens
+            // viejos revivían; lo mismo un token robado tras un reset de contraseña. Los socios
+            // no tienen baja de cuenta: no pagan esta consulta. `iat` tiene precisión de
+            // segundos, así que un token emitido en el mismo segundo del corte también cae:
+            // ante la duda, del lado seguro.
+            if (!JwtService.ROL_CLIENTE.equals(rol)
+                    && (claims.getIssuedAt() == null
+                        || !usuarioRepository.tieneSesionVigente(id, claims.getIssuedAt().toInstant()))) {
+                throw new JwtException("La cuenta de staff está dada de baja o el token es anterior al último corte de sesiones");
             }
 
             // El principal es un AuthPrincipal (no un String) para que los controllers puedan

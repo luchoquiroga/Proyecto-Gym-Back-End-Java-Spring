@@ -37,6 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -121,6 +122,72 @@ class AtaquesIntegrationTest {
         mockMvc.perform(post("/api/v1/pagos").header("Authorization", "Bearer " + tokenGerencia)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"clienteId\":1,\"planId\":1}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Reactivar a un empleado no resucita los tokens que tenía antes de la baja")
+    void reactivarStaff_noResucitaTokensViejos() throws Exception {
+        String tokenViejo = loguearComoGerencia("gerencia.ataque3");
+        Integer idGerencia = usuarioRepository.findByNombre("gerencia.ataque3").orElseThrow().getId();
+        String tokenAdmin = loguearComoAdmin();
+
+        cambiarActivo(tokenAdmin, idGerencia, false);
+        cambiarActivo(tokenAdmin, idGerencia, true);
+
+        mockMvc.perform(get("/api/v1/clientes").header("Authorization", "Bearer " + tokenViejo))
+                .andExpect(status().isUnauthorized());
+
+        // `iat` va en segundos y el filtro descarta también lo emitido en el segundo de la baja.
+        Thread.sleep(1100);
+        String tokenNuevo = tokenDe(loginStaff("gerencia.ataque3", "claveGerencia123"));
+        mockMvc.perform(get("/api/v1/clientes").header("Authorization", "Bearer " + tokenNuevo))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Si el admin resetea la contraseña de un empleado, el token que ya tenía muere en el acto")
+    void resetDeContrasena_mataElTokenRobado() throws Exception {
+        String tokenRobado = loguearComoGerencia("gerencia.ataque4");
+        Integer idGerencia = usuarioRepository.findByNombre("gerencia.ataque4").orElseThrow().getId();
+
+        mockMvc.perform(put("/api/v1/usuarios/" + idGerencia + "/contrasena")
+                        .header("Authorization", "Bearer " + loguearComoAdmin())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nuevaContrasena\":\"claveNueva12345\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/clientes").header("Authorization", "Bearer " + tokenRobado))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Cambiar la propia contraseña cierra todas las sesiones, incluida la actual")
+    void cambioDeContrasenaPropia_cierraLasSesiones() throws Exception {
+        String token = loguearComoGerencia("gerencia.ataque5");
+
+        mockMvc.perform(put("/api/v1/usuarios/cambiar-contrasena")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"contrasenaActual\":\"claveGerencia123\",\"nuevaContrasena\":\"claveNueva12345\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/clientes").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+        Thread.sleep(1100); // ver reactivarStaff_noResucitaTokensViejos
+        String tokenNuevo = tokenDe(loginStaff("gerencia.ataque5", "claveNueva12345"));
+        mockMvc.perform(get("/api/v1/clientes").header("Authorization", "Bearer " + tokenNuevo))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Un token sin fecha de emisión (iat) no sirve, aunque esté bien firmado")
+    void tokenDeStaffSinIat_deberiaDevolver401() throws Exception {
+        byte[] clave = entorno.getRequiredProperty("jwt.secret").getBytes();
+        String token = Jwts.builder().subject("admin").claim("id", idAdmin()).claim("rol", "ADMIN")
+                .expiration(new Date(System.currentTimeMillis() + 3_600_000))
+                .signWith(Keys.hmacShaKeyFor(clave)).compact();
+
+        pedirListadoDeUsuarios(token).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -288,8 +355,17 @@ class AtaquesIntegrationTest {
     private String tokenFirmadoDeVerdad(Integer id, String sub, String rol) {
         byte[] clave = entorno.getRequiredProperty("jwt.secret").getBytes(); // igual que JwtService
         return Jwts.builder().subject(sub).claim("id", id).claim("rol", rol)
+                .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000))
                 .signWith(Keys.hmacShaKeyFor(clave)).compact();
+    }
+
+    private void cambiarActivo(String tokenAdmin, Integer id, boolean activo) throws Exception {
+        mockMvc.perform(patch("/api/v1/usuarios/" + id + "/activo")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"activo\":" + activo + "}"))
+                .andExpect(status().isOk());
     }
 
     private Integer idAdmin() {
