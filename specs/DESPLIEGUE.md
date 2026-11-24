@@ -87,8 +87,8 @@ sistemas migrando la misma base se pisan: el caso típico es la trampa del basel
 de arriba. Las credenciales tampoco van al repo: viven solo en Render.
 
 **Límites del plan gratis.** El proyecto se pausa después de 7 días sin actividad
-(el uso diario y el job de medianoche lo evitan) y no hay backups automáticos: si
-los datos empiezan a importar, sacá un `pg_dump` cada tanto.
+(el uso diario y el job de medianoche lo evitan) y no trae backups descargables:
+los saca un workflow de GitHub Actions todos los días (§8).
 
 ---
 
@@ -339,3 +339,51 @@ bloquea el MVP):
    segundos (medido el 2026-09-24), y detrás de Vercel puede cortarse antes. Con
    el servicio despierto también corre el job de medianoche (§6), y como `/ping`
    no toca la base, no genera consultas de más.
+
+---
+
+## 8. Backups de la base
+
+`.github/workflows/backup-base.yml` saca un `pg_dump` de producción todos los días a
+las 03:00 (Argentina). Verifica que el archivo traiga los datos de las tablas, lo cifra
+con AES-256 y lo guarda como artifact del run durante **30 días**. Es gratis: en un
+repo público los minutos de Actions no se cobran, y en uno privado el backup usa ~2 de
+los 2000 minutos del mes.
+
+**Puesta en marcha (una sola vez):**
+
+1. En GitHub → Settings → Secrets and variables → Actions, cargá dos secrets:
+   - `SUPABASE_DB_URL`: la URI del **Session pooler** con el usuario dueño
+     (`postgresql://postgres.<ref>:<clave>@aws-0-<región>.pooler.supabase.com:5432/postgres`).
+     No sirve la URL JDBC ni el usuario `gimnasio_runtime`: las tablas tienen RLS
+     (V8) y ese usuario no ve todas las filas.
+   - `BACKUP_PASSPHRASE`: generala con `openssl rand -base64 32` y **guardala también
+     en un gestor de contraseñas**. Si se pierde, los backups no se pueden abrir.
+2. El cron de GitHub corre **solo en la rama por defecto** (`master`): el backup arranca
+   recién cuando el workflow se mergea.
+3. Corrélo una vez a mano (Actions → "Backup de la base" → Run workflow) y hacé el
+   simulacro de restauración de abajo. Un backup que nunca se restauró no está probado.
+
+**Restaurar:**
+
+1. Actions → el run del día que querés → Artifacts → bajá el zip y descomprimilo.
+2. Descifrá: `gpg --decrypt --output backup.dump backup-AAAA-MM-DD.dump.gpg` (pide la
+   passphrase).
+3. Restaurá **en una base vacía**, nunca encima de producción sin pensarlo:
+   `pg_restore --no-owner --no-privileges -d "<URI de la base destino>" backup.dump`.
+   Para el simulacro, una base local nueva creada con el superusuario `postgres` alcanza.
+   Si de verdad hay que pisar producción, primero un backup del estado actual, y después
+   `--clean --if-exists`, que **borra** lo que haya en la base destino.
+
+**Cosas que conviene saber:**
+
+- Si un run falla, GitHub le manda un mail a quien tocó el cron por última vez.
+- **En un repo público, GitHub apaga los workflows programados después de 60 días sin
+  actividad en el repo.** Si el repo queda quieto, el backup deja de correr sin hacer
+  ruido: un commit cualquiera, o reactivarlo desde la pestaña Actions, lo vuelve a
+  prender.
+- El dump es solo el esquema `public`. Lo demás (`auth`, `storage`, ...) es de Supabase
+  y la app no lo usa.
+- La ida y vuelta (dump → cifrado → descifrado → mismas filas que la base) se verificó
+  en local el 2026-11-24 contra `gym_api_local`. La restauración en una base vacía queda
+  para el simulacro del paso 3: el usuario local de la app no puede crear bases.

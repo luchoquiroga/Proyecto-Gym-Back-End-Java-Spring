@@ -229,7 +229,8 @@ class DashboardControllerIntegrationTest {
     }
 
     private void registrarPago(Plan plan, LocalDate fechaPago, boolean anulado) {
-        String documento = "SERIE" + System.nanoTime();
+        // nanoTime() crece con el uptime de la máquina: sin el módulo superaba el VARCHAR(20) de documento.
+        String documento = "SERIE" + System.nanoTime() % 1_000_000_000_000L;
         Cliente cliente = clienteRepository.save(new Cliente(null, "Serie", "Mes", "555-" + documento,
                 documento, null, null, EstadoCliente.INACTIVO, null));
         Pago pago = new Pago();

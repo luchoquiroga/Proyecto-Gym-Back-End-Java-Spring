@@ -58,9 +58,8 @@ public class RefreshTokenService {
         }
 
         // Una cuenta dada de baja no puede estirar su sesión, aunque su refresh token siga
-        // vigente y sin revocar. Es el cierre real de la baja: el access token que ya tenía
-        // en la mano sigue sirviendo hasta que expira (el filtro no consulta la base), pero
-        // a partir de ahí no hay forma de renovarlo.
+        // vigente y sin revocar. El access token que ya tenía lo corta JwtAuthenticationFilter,
+        // que también consulta si la cuenta sigue activa.
         if (!registro.getUsuario().isActivo()) {
             throw new JwtException("La cuenta está dada de baja");
         }

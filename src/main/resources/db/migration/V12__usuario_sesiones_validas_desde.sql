@@ -1,0 +1,11 @@
+-- `fecha_baja` (V11) pasa a ser el corte general de sesiones de una cuenta de staff.
+--
+-- Además de la baja, un cambio o reset de contraseña tiene que matar los access tokens que
+-- ya se repartieron: si se resetea porque la cuenta estaba comprometida, el token robado no
+-- puede seguir sirviendo 30 minutos más. Es la misma regla ("vale solo lo emitido después
+-- de X"), así que es la misma columna con un nombre que diga lo que es.
+--
+-- Va en una migración nueva y no editando V11 porque V11 ya se aplicó (al menos en la base
+-- de test): editarla rompería el checksum de Flyway. RENAME solo toca metadatos: no
+-- reescribe la tabla ni cambia datos.
+ALTER TABLE usuarios RENAME COLUMN fecha_baja TO sesiones_validas_desde;

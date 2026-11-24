@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -135,6 +136,9 @@ public class UsuarioServiceImpl implements UsuarioService {
             throw new IllegalArgumentException("No se puede dar de baja al último administrador del sistema.");
         }
 
+        if (!activo && usuario.isActivo()) {
+            cortarSesiones(usuario);
+        }
         usuario.setActivo(activo);
         Usuario guardado = usuarioRepository.save(usuario);
 
@@ -154,8 +158,18 @@ public class UsuarioServiceImpl implements UsuarioService {
 
     private Usuario guardarContrasena(Usuario usuario, String nuevaContrasena) {
         usuario.setContrasena(passwordEncoder.encode(nuevaContrasena));
+        // Si se cambia porque la cuenta estaba comprometida, el token robado muere acá.
+        cortarSesiones(usuario);
         Usuario guardado = usuarioRepository.save(usuario);
         refreshTokenService.revocarTodosDe(usuario.getId());
         return guardado;
+    }
+
+    /**
+     * Invalida los access tokens que la cuenta ya tiene repartidos (ver JwtAuthenticationFilter).
+     * Usa el reloj de la JVM, el mismo que firma el `iat` de los tokens.
+     */
+    private void cortarSesiones(Usuario usuario) {
+        usuario.setSesionesValidasDesde(Instant.now());
     }
 }

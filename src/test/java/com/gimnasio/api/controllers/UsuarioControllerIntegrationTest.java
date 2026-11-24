@@ -47,6 +47,9 @@ class UsuarioControllerIntegrationTest {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
+    @Autowired
+    private com.gimnasio.api.services.UsuarioService usuarioService;
+
     @Test
     @DisplayName("Login con admin/admin123 debe devolver access token, datos del usuario y cookie refreshToken HttpOnly")
     void login_conCredencialesCorrectas_deberiaDevolverTokensYCookie() throws Exception {
@@ -400,9 +403,9 @@ class UsuarioControllerIntegrationTest {
         // Y para llegar hasta la regla hay que pasar por una puerta estrecha: si quien llama
         // es un ADMIN activo y el objetivo también, por definición hay dos activos y la regla
         // no dispara; y si el ADMIN intenta darse de baja a sí mismo, lo frena antes la regla
-        // de auto-baja. La única forma real es la de acá abajo, que además documenta el hueco
-        // aceptado del diseño: el access token de una cuenta recién dada de baja sigue siendo
-        // válido hasta que expira, porque el filtro no consulta la base.
+        // de auto-baja. Por HTTP la única puerta era el token de una cuenta recién dada de baja,
+        // y esa puerta ya está cerrada (JwtAuthenticationFilter consulta si la cuenta sigue
+        // activa). La regla se ejerce entonces llamando al service, contra la base real.
         String tokenAdmin = tokenDeAdmin();
         Integer idSuplente = crearStaff(tokenAdmin, "adminSuplente", "claveAdmin123", "ADMIN");
         String tokenSuplente = extraerCampo(login("adminSuplente", "claveAdmin123"), "accessToken");
@@ -415,18 +418,19 @@ class UsuarioControllerIntegrationTest {
                         .content("{\"activo\":false}"))
                 .andExpect(status().isOk());
 
-        // El suplente ya está inactivo, pero su token sigue vivo. Con él intenta dar de baja
-        // al que queda: en la tabla hay dos filas ADMIN, activa una sola, y es esa.
+        // El token del suplente dado de baja ya no sirve para nada.
         mockMvc.perform(patch("/api/v1/usuarios/" + idAdminPrincipal + "/activo")
                         .header("Authorization", "Bearer " + tokenSuplente)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"activo\":false}"))
-                .andExpect(status().isBadRequest())
-                // Se fija el mensaje y no solo el 400: sin esto, el test también pasaría si
-                // lo rechazara cualquier otra regla (la de auto-baja, una validación), o sea
-                // que pasaría por el motivo equivocado sin que nadie se enterara.
-                .andExpect(jsonPath("$.mensaje").value(
-                        org.hamcrest.Matchers.containsString("último administrador")));
+                .andExpect(status().isUnauthorized());
+
+        // En la tabla hay dos filas ADMIN, activa una sola, y es esa: la baja se rechaza.
+        // Se fija el mensaje y no solo la excepción: sin esto, el test también pasaría si
+        // lo rechazara cualquier otra regla (la de auto-baja, una validación).
+        IllegalArgumentException error = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> usuarioService.cambiarActivo(idAdminPrincipal, false, idSuplente));
+        assertTrue(error.getMessage().contains("último administrador"), error.getMessage());
 
         assertTrue(usuarioRepository.findById(idAdminPrincipal).orElseThrow().isActivo());
     }

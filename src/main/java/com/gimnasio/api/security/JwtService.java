@@ -22,7 +22,7 @@ public class JwtService {
 
     private static final String CLAIM_TIPO = "tipo";
     private static final String TIPO_REFRESH = "refresh";
-    private static final String ROL_CLIENTE = "CLIENTE";
+    static final String ROL_CLIENTE = "CLIENTE";
 
     private final SecretKey clave;
     private final long accessExpiracionMs;

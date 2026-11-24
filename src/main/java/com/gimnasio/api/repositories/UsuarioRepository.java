@@ -9,12 +9,20 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface UsuarioRepository extends JpaRepository<Usuario, Integer> {
     Optional<Usuario> findByNombre(String nombre);
+
+    // Lo consulta JwtAuthenticationFilter en cada request de staff: un SELECT por PK, barato.
+    // Un token vale si la cuenta está activa y se emitió después del último corte de sesiones
+    // (baja o cambio de contraseña): reactivar la cuenta no resucita los tokens anteriores.
+    @Query("SELECT COUNT(u) > 0 FROM Usuario u WHERE u.id = :id AND u.activo = true "
+            + "AND (u.sesionesValidasDesde IS NULL OR u.sesionesValidasDesde < :emitidoEn)")
+    boolean tieneSesionVigente(@Param("id") Integer id, @Param("emitidoEn") Instant emitidoEn);
 
     // Solo las cuentas vigentes: para saber si queda algún ADMIN que pueda administrar el
     // sistema, un ADMIN dado de baja no sirve (no puede loguearse). Contar todas dejaría dar

@@ -1,0 +1,11 @@
+-- Momento de la última baja de una cuenta de staff.
+--
+-- El filtro JWT ya rechazaba los tokens de cuentas inactivas, pero al reactivar una cuenta
+-- los access tokens emitidos antes de la baja volvían a servir hasta vencer (30 min): la baja
+-- no los mataba, solo los dormía. Con esta fecha, un token de staff vale si la cuenta está
+-- activa y además se emitió después de su última baja (ver JwtAuthenticationFilter).
+--
+-- Aditiva y sin backfill: NULL significa "nunca dada de baja", que es lo único que se puede
+-- afirmar de las cuentas existentes. TIMESTAMPTZ porque se compara contra el `iat` del token,
+-- que es un instante absoluto.
+ALTER TABLE usuarios ADD COLUMN fecha_baja TIMESTAMPTZ;

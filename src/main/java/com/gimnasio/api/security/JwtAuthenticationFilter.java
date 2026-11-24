@@ -1,5 +1,6 @@
 package com.gimnasio.api.security;
 
+import com.gimnasio.api.repositories.UsuarioRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -33,6 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     public static final String ATRIBUTO_TOKEN_INVALIDO = JwtAuthenticationFilter.class.getName() + ".tokenInvalido";
 
     private final JwtService jwtService;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -61,6 +63,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String nombreUsuario = claims.getSubject();
             String rol = claims.get("rol", String.class);
             Integer id = claims.get("id", Integer.class);
+
+            // El JWT no se puede revocar: sin esto, un empleado dado de baja seguía operando
+            // con su access token hasta que vencía (hasta 30 min), y al reactivarlo sus tokens
+            // viejos revivían; lo mismo un token robado tras un reset de contraseña. Los socios
+            // no tienen baja de cuenta: no pagan esta consulta. `iat` tiene precisión de
+            // segundos, así que un token emitido en el mismo segundo del corte también cae:
+            // ante la duda, del lado seguro.
+            if (!JwtService.ROL_CLIENTE.equals(rol)
+                    && (claims.getIssuedAt() == null
+                        || !usuarioRepository.tieneSesionVigente(id, claims.getIssuedAt().toInstant()))) {
+                throw new JwtException("La cuenta de staff está dada de baja o el token es anterior al último corte de sesiones");
+            }
 
             // El principal es un AuthPrincipal (no un String) para que los controllers puedan
             // saber "a quién pertenece este token" sin volver a consultar la base. Nota: como
